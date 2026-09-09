@@ -57,17 +57,21 @@ both the monster and the egg's own artwork are ready. `app/collection/page.tsx` 
 player has forged.
 
 Auth is client-side (`components/AuthProvider.tsx`, Firebase JS SDK, Google provider via `signInWithRedirect`
-for reliability inside an installed PWA where popups are flaky). Firestore and Storage are **never** touched
-from the client — every read/write goes through an API route that verifies the Firebase ID token server-side
+for reliability inside an installed PWA where popups are flaky). Firestore is **never** touched from the
+client — every read/write goes through an API route that verifies the Firebase ID token server-side
 (`lib/auth-server.ts`) and then uses the Firebase **Admin** SDK (`lib/firebase/admin.ts`), which bypasses
-security rules entirely. That's deliberate: it means Firestore/Storage rules can stay locked to "deny all"
-(see the setup steps) since nothing but our own verified server code ever reaches them — no client-side rules
-to get subtly wrong.
+security rules entirely. That's deliberate: it means Firestore rules can stay locked to "deny all" (see the
+setup steps) since nothing but our own verified server code ever reaches them — no client-side rules to get
+subtly wrong.
 
-Sprite sheets are too big for a Firestore document (1 MiB limit; a 1024×1024 PNG can get close to or over that
-as base64), so the actual images live in **Firebase Storage** and Firestore only stores metadata + a Storage
-download URL per image (`lib/storage.ts` uploads a data URL and returns a token-based public URL, the same
-mechanism the Firebase client SDK's `getDownloadURL()` uses).
+**No Firebase Storage** — new Firebase projects need the paid Blaze plan to use Storage at all, so images are
+stored directly in the Firestore document instead of a separate bucket. A full-resolution 1024×1024 sprite
+sheet is too big for that (Firestore caps a whole document at 1 MiB, and a monster doc holds up to three
+images — egg, monster, learned ability), so `lib/image-resize.ts`'s `shrinkDataUrlForFirestore()` downscales
+each one (nearest-neighbor, so hard pixel edges stay crisp instead of blurring) and re-encodes it as a
+palette-quantized PNG before saving — pixel art compresses extremely well, so this comfortably fits all three
+images plus metadata in one document. This only affects the *persisted* copy in `/collection`; the live
+forge/hatch/ability flow always displays the full-resolution image the model generated.
 
 If `NEXT_PUBLIC_FIREBASE_*` env vars aren't set, the app doesn't crash — `AuthProvider` detects this
 (`isFirebaseConfigured()` in `lib/firebase/client.ts`) and behaves as permanently signed-out: sign-in UI hides
@@ -125,41 +129,26 @@ setup** below for the full step-by-step to enable sign-in and the collection pag
    }
    ```
    This is safe (not broken) — all real access goes through the Admin SDK on the server, which ignores rules.
-4. **Enable Storage**: left sidebar → *Build → Storage* → *Get started* → keep the default bucket. On the
-   *Rules* tab, set the same deny-all:
-   ```
-   rules_version = '2';
-   service firebase.storage {
-     match /b/{bucket}/o {
-       match /{allPaths=**} {
-         allow read, write: if false;
-       }
-     }
-   }
-   ```
-   Images are still fetchable by anyone with their URL — the per-file download token embedded in the URL
-   (`lib/storage.ts`) is what authorizes that specific read, the same mechanism the client SDK's
-   `getDownloadURL()` relies on, and it isn't gated by these rules.
-5. **Register a web app**: *Project settings* (gear icon) → *General* → *Your apps* → **Add app → Web** (`</>`
+   No Firebase Storage needed — it requires the paid Blaze plan, so this app stores images in Firestore
+   directly instead (see **Accounts & collection** above).
+4. **Register a web app**: *Project settings* (gear icon) → *General* → *Your apps* → **Add app → Web** (`</>`
    icon). Give it a nickname, skip Firebase Hosting. It'll show a `firebaseConfig` object — copy those values
    into the `NEXT_PUBLIC_FIREBASE_*` vars in `.env.local` / Vercel (`apiKey` → `NEXT_PUBLIC_FIREBASE_API_KEY`,
-   `authDomain` → `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`, etc.).
-6. **Generate an Admin SDK service account**: *Project settings* → *Service accounts* → **Generate new private
+   `authDomain` → `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`, etc. — you can ignore `storageBucket`, it's unused).
+5. **Generate an Admin SDK service account**: *Project settings* → *Service accounts* → **Generate new private
    key**. This downloads a JSON file — from it, fill in:
    - `FIREBASE_PROJECT_ID` = the JSON's `project_id`
    - `FIREBASE_CLIENT_EMAIL` = the JSON's `client_email`
    - `FIREBASE_PRIVATE_KEY` = the JSON's `private_key` (paste it exactly, `\n`s and all — Vercel's env var UI
      handles multi-line values fine; if pasting into a single-line `.env.local`, keep the literal `\n`
      sequences, `lib/firebase/admin.ts` converts them back to real newlines at runtime)
-   - `FIREBASE_STORAGE_BUCKET` = same bucket as `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` (looks like
-     `<project-id>.appspot.com` or `<project-id>.firebasestorage.app` depending on when the project was created)
 
    **Never commit this JSON file or paste its contents anywhere but env vars** — it's a server-only secret with
    full admin access to your Firebase project.
-7. **Authorize your domain for Google sign-in**: *Authentication* → *Settings* → *Authorized domains* → add
+6. **Authorize your domain for Google sign-in**: *Authentication* → *Settings* → *Authorized domains* → add
    your Vercel domain (`your-app.vercel.app`, plus any custom domain). `localhost` is already allowed by default
    for local dev.
-8. Redeploy (or restart `npm run dev` locally) once the env vars are set — `AuthProvider` picks up the new
+7. Redeploy (or restart `npm run dev` locally) once the env vars are set — `AuthProvider` picks up the new
    config on load. Sign in from the header, forge a monster, and check `/collection`.
 
 ## Notes / follow-ups

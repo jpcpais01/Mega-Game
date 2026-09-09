@@ -39,17 +39,19 @@ export type SlotEntry = {
   learnedAbility: LearnedAbility | null;
 };
 
-// A monster persisted to a signed-in user's collection (Firestore doc + Storage URLs).
+// A monster persisted to a signed-in user's collection. Images are stored as
+// downscaled/compressed data URLs directly in the Firestore doc (no Firebase
+// Storage — that requires the paid Blaze plan) — see lib/image-resize.ts.
 export type SavedMonster = {
   id: string;
   eggName: string;
   eggLore: string;
   stats: EggStat[];
   essenceIds: string[];
-  eggImageUrl: string;
+  eggImageDataUrl: string;
   monsterName: string;
   monsterLore: string;
-  monsterImageUrl: string;
+  monsterImageDataUrl: string;
   abilities: Ability[];
   learnedAbility: LearnedAbility | null;
   createdAt: number; // epoch ms

@@ -2,7 +2,7 @@ import { Timestamp } from "firebase-admin/firestore";
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser, UnauthorizedError } from "@/lib/auth-server";
 import { adminDb } from "@/lib/firebase/admin";
-import { uploadDataUrlToStorage } from "@/lib/storage";
+import { shrinkDataUrlForFirestore } from "@/lib/image-resize";
 import { Ability, EggStat, SavedMonster } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -64,9 +64,9 @@ export async function POST(req: NextRequest) {
     }
 
     const docRef = monstersCollection(uid).doc();
-    const [eggImageUrl, monsterImageUrl] = await Promise.all([
-      uploadDataUrlToStorage(`users/${uid}/monsters/${docRef.id}/egg.png`, eggImageDataUrl),
-      uploadDataUrlToStorage(`users/${uid}/monsters/${docRef.id}/monster.png`, monsterImageDataUrl),
+    const [eggImageShrunk, monsterImageShrunk] = await Promise.all([
+      shrinkDataUrlForFirestore(eggImageDataUrl),
+      shrinkDataUrlForFirestore(monsterImageDataUrl),
     ]);
 
     const data: StoredMonster = {
@@ -74,10 +74,10 @@ export async function POST(req: NextRequest) {
       eggLore,
       stats: stats as EggStat[],
       essenceIds: essenceIds as string[],
-      eggImageUrl,
+      eggImageDataUrl: eggImageShrunk,
       monsterName,
       monsterLore,
-      monsterImageUrl,
+      monsterImageDataUrl: monsterImageShrunk,
       abilities: abilities as Ability[],
       learnedAbility: null,
       createdAt: Timestamp.now(),

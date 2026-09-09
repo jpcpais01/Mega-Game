@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser, UnauthorizedError } from "@/lib/auth-server";
 import { adminDb } from "@/lib/firebase/admin";
-import { uploadDataUrlToStorage } from "@/lib/storage";
+import { shrinkDataUrlForFirestore } from "@/lib/image-resize";
 import { LearnedAbility } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -30,10 +30,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
       return NextResponse.json({ error: "Monster not found" }, { status: 404 });
     }
 
-    const imageDataUrl = await uploadDataUrlToStorage(
-      `users/${uid}/monsters/${id}/ability.png`,
-      animationImageDataUrl
-    );
+    const imageDataUrl = await shrinkDataUrlForFirestore(animationImageDataUrl);
 
     const learnedAbility: LearnedAbility = { name: abilityName, description: abilityDescription, imageDataUrl };
     await docRef.update({ learnedAbility });
