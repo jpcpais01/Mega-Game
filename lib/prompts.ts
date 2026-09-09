@@ -4,7 +4,7 @@ const ART_STYLE = [
   "Mobile game creature art, painterly digital illustration, vibrant saturated colors, dramatic rim lighting, high detail.",
   "Camera framing: front-facing view of the subject rotated approximately 20 degrees to one side (three-quarter-lean front view, NOT a full side profile).",
   "The subject is perfectly centered and fully visible within the frame, floating with no ground, no shadow, no platform.",
-  "Background: absolutely nothing — perfectly transparent background, no color fill, no gradient, no scenery, no text, no watermark, no border, no frame.",
+  "Background: transparent PNG background — render the background pixels as fully transparent (alpha 0), not white, not a color fill, not a checkerboard pattern, not a gradient, no scenery, no ground, no text, no watermark, no border, no frame. Output a PNG with a genuine alpha channel, like a game sprite asset.",
   "Single subject only, game-ready icon composition.",
 ].join(" ");
 

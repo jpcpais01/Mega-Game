@@ -89,7 +89,7 @@ export async function generateImage(params: {
       prompt: params.prompt,
       aspect_ratio: params.aspectRatio ?? "1:1",
       quality: params.quality ?? "high",
-      background: "transparent",
+      background: "auto",
       n: 1,
     }),
   });
