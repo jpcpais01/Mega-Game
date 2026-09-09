@@ -1,3 +1,5 @@
+import { chromaKeyToTransparentPng } from "./chroma-key";
+
 const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
 
 const TEXT_MODEL = "openai/gpt-5.6-luna";
@@ -89,7 +91,7 @@ export async function generateImage(params: {
       prompt: params.prompt,
       aspect_ratio: params.aspectRatio ?? "1:1",
       quality: params.quality ?? "high",
-      background: "auto",
+      background: "opaque",
       n: 1,
     }),
   });
@@ -104,6 +106,8 @@ export async function generateImage(params: {
   if (!image?.b64_json) {
     throw new Error("OpenRouter image response missing b64_json");
   }
-  const mediaType = image.media_type ?? "image/png";
-  return `data:${mediaType};base64,${image.b64_json}`;
+
+  const rawBuffer = Buffer.from(image.b64_json, "base64");
+  const transparentBuffer = await chromaKeyToTransparentPng(rawBuffer);
+  return `data:image/png;base64,${transparentBuffer.toString("base64")}`;
 }
