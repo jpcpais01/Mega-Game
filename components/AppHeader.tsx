@@ -6,7 +6,7 @@ import { useState } from "react";
 import { useAuth } from "./AuthProvider";
 
 export default function AppHeader({ active }: { active: "home" | "collection" }) {
-  const { user, loading, configured, signIn, signOut } = useAuth();
+  const { user, loading, configured, authError, signIn, signOut } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
@@ -65,6 +65,10 @@ export default function AppHeader({ active }: { active: "home" | "collection" })
           )}
         </div>
       </div>
+
+      {authError && (
+        <p className="text-[11px] text-[var(--danger)] text-center max-w-xs mt-1">{authError}</p>
+      )}
 
       <Link href="/" className="flex flex-col items-center gap-1 mt-2">
         <div className="text-3xl">🥚</div>
