@@ -1,9 +1,20 @@
-import { chromaKeyToTransparentPng } from "./chroma-key";
+import { CHROMA_KEY_HEX, chromaKeyToTransparentPng } from "./chroma-key";
 
 const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
 
 const TEXT_MODEL = "openai/gpt-5.6-luna";
 const IMAGE_MODEL = "openai/gpt-image-2.5-flare";
+
+const TRANSPARENT_BG_SUFFIX =
+  "Background: fully transparent. Render the background pixels with alpha 0 (a genuine transparent PNG alpha channel, like a game sprite asset) — not white, not a color fill, not a checkerboard pattern, not a gradient.";
+
+const CHROMA_KEY_BG_SUFFIX = `Background: fill the ENTIRE background area with one single, perfectly flat, completely uniform, unbroken solid chroma-key color: ${CHROMA_KEY_HEX} (pure magenta/pink) — a solid opaque studio background paint, like a photography green-screen. This is NOT a representation of transparency, so do NOT draw a checkerboard pattern or any transparency icon, and do NOT use any gradient, texture, vignette, or scenery. Every background pixel must be that exact flat magenta color. The subject itself must never use this magenta/pink color anywhere.`;
+
+// Cached per-process: whether OpenRouter's current provider for IMAGE_MODEL
+// actually accepts background:"transparent", so repeat calls in the same
+// warm serverless instance skip straight to whichever strategy works
+// instead of re-probing every time.
+let nativeTransparentSupport: "unknown" | "yes" | "no" = "unknown";
 
 function getApiKey(): string {
   const key = process.env.OPENROUTER_API_KEY;
@@ -78,36 +89,76 @@ export async function callChatJSON(params: {
   return extractJson(message);
 }
 
-export async function generateImage(params: {
+type ImagesApiResult = { ok: true; b64: string } | { ok: false; status: number; body: string };
+
+async function requestImage(params: {
   prompt: string;
-  aspectRatio?: string;
-  quality?: string;
-}): Promise<string> {
+  aspectRatio: string;
+  quality: string;
+  background: "transparent" | "opaque";
+}): Promise<ImagesApiResult> {
   const res = await fetch(`${OPENROUTER_BASE}/images`, {
     method: "POST",
     headers: authHeaders(),
     body: JSON.stringify({
       model: IMAGE_MODEL,
       prompt: params.prompt,
-      aspect_ratio: params.aspectRatio ?? "1:1",
-      quality: params.quality ?? "high",
-      background: "opaque",
+      aspect_ratio: params.aspectRatio,
+      quality: params.quality,
+      background: params.background,
       n: 1,
     }),
   });
 
   if (!res.ok) {
     const errText = await res.text().catch(() => "");
-    throw new Error(`OpenRouter image error ${res.status}: ${errText.slice(0, 500)}`);
+    return { ok: false, status: res.status, body: errText };
   }
 
   const json = await res.json();
-  const image = json?.data?.[0];
-  if (!image?.b64_json) {
-    throw new Error("OpenRouter image response missing b64_json");
+  const b64 = json?.data?.[0]?.b64_json;
+  if (typeof b64 !== "string") {
+    return { ok: false, status: res.status, body: "response missing b64_json" };
+  }
+  return { ok: true, b64 };
+}
+
+export async function generateImage(params: {
+  prompt: string;
+  aspectRatio?: string;
+  quality?: string;
+}): Promise<string> {
+  const aspectRatio = params.aspectRatio ?? "1:1";
+  const quality = params.quality ?? "high";
+
+  if (nativeTransparentSupport !== "no") {
+    const transparentResult = await requestImage({
+      prompt: `${params.prompt} ${TRANSPARENT_BG_SUFFIX}`,
+      aspectRatio,
+      quality,
+      background: "transparent",
+    });
+    if (transparentResult.ok) {
+      nativeTransparentSupport = "yes";
+      return `data:image/png;base64,${transparentResult.b64}`;
+    }
+    nativeTransparentSupport = "no";
+    console.warn(
+      `OpenRouter rejected background:"transparent" (status ${transparentResult.status}), falling back to chroma-key: ${transparentResult.body.slice(0, 300)}`
+    );
   }
 
-  const rawBuffer = Buffer.from(image.b64_json, "base64");
+  const chromaResult = await requestImage({
+    prompt: `${params.prompt} ${CHROMA_KEY_BG_SUFFIX}`,
+    aspectRatio,
+    quality,
+    background: "opaque",
+  });
+  if (!chromaResult.ok) {
+    throw new Error(`OpenRouter image error ${chromaResult.status}: ${chromaResult.body.slice(0, 500)}`);
+  }
+
+  const rawBuffer = Buffer.from(chromaResult.b64, "base64");
   const transparentBuffer = await chromaKeyToTransparentPng(rawBuffer);
   return `data:image/png;base64,${transparentBuffer.toString("base64")}`;
 }

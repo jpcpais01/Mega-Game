@@ -1,12 +1,15 @@
 import { Essence } from "./essences";
-import { CHROMA_KEY_HEX } from "./chroma-key";
 
+// Background treatment is deliberately NOT part of this: it's appended
+// programmatically by lib/openrouter.ts, which picks between a real
+// transparent-PNG request and a chroma-key fallback depending on what the
+// image provider actually accepts. Keeping it out of the LLM-authored
+// imagePrompt means we can switch strategy without a second text-LLM call.
 const ART_STYLE = [
   "Mobile game creature art, painterly digital illustration, vibrant saturated colors, dramatic rim lighting, high detail.",
   "Camera framing: front-facing view of the subject rotated approximately 20 degrees to one side (three-quarter-lean front view, NOT a full side profile).",
-  "The subject is perfectly centered and fully visible within the frame, floating with no ground, no shadow, no platform.",
-  `Background: fill the ENTIRE background area with one single, perfectly flat, completely uniform, unbroken solid chroma-key color: ${CHROMA_KEY_HEX} (pure magenta/pink). This is a solid opaque studio background paint, like a photography green-screen — NOT a representation of transparency, so do NOT draw a checkerboard pattern, do NOT draw any transparency icon, alpha grid, or "no background" symbol, and do NOT use any gradient, texture, vignette, scenery, ground, shadow, text, watermark, border, or frame. Every background pixel must be that exact flat magenta color so it can be removed by software afterward. The subject itself must never use this magenta/pink color anywhere, so it stays cleanly separable from the background.`,
-  "Single subject only, game-ready icon composition.",
+  "The subject is perfectly centered and fully visible within the frame, floating with no ground, no shadow, no platform, no scenery, no text, no watermark, no border, no frame.",
+  "Single subject only, game-ready icon composition. Do not mention or describe any background — background treatment is handled separately.",
 ].join(" ");
 
 export function eggCreatorSystemPrompt(): string {
@@ -27,7 +30,7 @@ Respond with ONLY a strict JSON object, no prose, matching exactly this shape:
     { "name": string (short fun stat name, e.g. "Hatch Speed", "Shell Density"), "value": number (integer 1-100) }
     // exactly 5 of these, each a different creative stat relevant to the essence mix
   ],
-  "imagePrompt": string (a single detailed text-to-image prompt for the egg, following the art direction above)
+  "imagePrompt": string (a single detailed text-to-image prompt describing ONLY the egg's appearance — shape, colors, textures, patterns — following the art direction above; do not mention background)
 }`;
 }
 
@@ -53,7 +56,7 @@ Respond with ONLY a strict JSON object, no prose, matching exactly this shape:
 {
   "monsterName": string (a creature name, can riff on the egg name),
   "lore": string (max 20 words, punchy mini lore for the hatched monster),
-  "imagePrompt": string (a single detailed text-to-image prompt for the monster, following the art direction above)
+  "imagePrompt": string (a single detailed text-to-image prompt describing ONLY the monster's appearance — anatomy, colors, textures, silhouette — following the art direction above; do not mention background)
 }`;
 }
 
