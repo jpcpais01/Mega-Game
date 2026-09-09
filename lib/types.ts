@@ -3,26 +3,21 @@ export type EggStat = {
   value: number; // 1-100
 };
 
-export type EggData = {
+export type EggDetails = {
   eggName: string;
   lore: string;
   stats: EggStat[];
   imagePrompt: string;
-  imageDataUrl: string;
   essenceIds: string[];
 };
 
-export type MeshPoint = {
-  id: string;
-  x: number; // normalized 0..1
-  y: number; // normalized 0..1
-  label: string;
+export type EggData = EggDetails & {
+  imageDataUrl: string | null; // null while the image is still generating
 };
 
 export type MonsterData = {
   monsterName: string;
   lore: string;
   imagePrompt: string;
-  imageDataUrl: string;
-  meshPoints: MeshPoint[];
+  imageDataUrl: string; // sprite sheet: SPRITE_GRID_COLS x SPRITE_GRID_ROWS frames
 };

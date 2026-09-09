@@ -6,10 +6,10 @@ import { Essence } from "./essences";
 // image provider actually accepts. Keeping it out of the LLM-authored
 // imagePrompt means we can switch strategy without a second text-LLM call.
 const ART_STYLE = [
-  "Mobile game creature art, painterly digital illustration, vibrant saturated colors, dramatic rim lighting, high detail.",
-  "Camera framing: front-facing view of the subject rotated approximately 20 degrees to one side (three-quarter-lean front view, NOT a full side profile).",
-  "The subject is perfectly centered and fully visible within the frame, floating with no ground, no shadow, no platform, no scenery, no text, no watermark, no border, no frame.",
-  "Single subject only, game-ready icon composition. Do not mention or describe any background — background treatment is handled separately.",
+  "Detailed modern pixel art (rich 32-bit-era color depth and shading, crisp hard pixel edges, no anti-aliasing blur, no smooth gradients) — think high-quality indie pixel art, not blocky flat 8-bit retro.",
+  "Camera: 2.5D isometric game-camera perspective viewed from the front-left, roughly a 30-degree isometric angle (NOT a flat front view, NOT top-down).",
+  "The subject is perfectly centered and fully visible within the frame, floating with no ground tile, no platform, no shadow, no scenery, no text, no watermark, no border, no frame.",
+  "Single subject only, game-ready asset composition. Do not mention or describe any background — background treatment is handled separately.",
 ].join(" ");
 
 export function eggCreatorSystemPrompt(): string {
@@ -69,26 +69,4 @@ export function monsterDesignerUserPrompt(params: {
   const statsList = params.stats.map((s) => `${s.name}: ${s.value}/100`).join(", ");
   const essenceList = params.essences.map((e) => e.name).join(", ");
   return `Egg name: ${params.eggName}\nEgg lore: ${params.lore}\nEgg stats: ${statsList}\nEssences used: ${essenceList}\n\nDesign the hatched monster now.`;
-}
-
-export function animationThinkerSystemPrompt(): string {
-  return `You are the Animation Thinker, a veteran 2D game animator AI for "Mega Game". You are shown an image of a
-creature that will be rigged onto a stretchy deformable mesh for a lightweight idle "breathing" loop animation
-(no bones, just a handful of anchor points that gently pull the mesh in different directions).
-
-Study the creature's silhouette and choose between 4 and 7 good anchor points for this idle animation — pick
-points at the tips of limbs, ears, horns, tail, head top, or belly: places where a subtle idle sway or breathing
-motion would look natural and alive. Avoid points that are off the creature or in empty transparent space.
-
-Respond with ONLY a strict JSON object, no prose, matching exactly this shape:
-{
-  "points": [
-    { "x": number (0..1, fraction of image width from the left), "y": number (0..1, fraction of image height from the top), "label": string (short body part name) }
-    // between 4 and 7 of these
-  ]
-}`;
-}
-
-export function animationThinkerUserPrompt(): string {
-  return "Here is the hatched creature's image. Choose the idle-animation anchor points now.";
 }

@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ESSENCES, MAX_ESSENCES_PER_EGG } from "@/lib/essences";
-import { callChatJSON, generateImage } from "@/lib/openrouter";
+import { callChatJSON } from "@/lib/openrouter";
 import { eggCreatorSystemPrompt, eggCreatorUserPrompt } from "@/lib/prompts";
-import { EggData, EggStat } from "@/lib/types";
+import { EggDetails, EggStat } from "@/lib/types";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 30;
 
 type RawEggJson = {
   eggName?: unknown;
@@ -65,18 +65,15 @@ export async function POST(req: NextRequest) {
     });
     const eggJson = validateEggJson(rawJson);
 
-    const imageDataUrl = await generateImage({ prompt: eggJson.imagePrompt });
-
-    const egg: EggData = {
+    const details: EggDetails = {
       ...eggJson,
-      imageDataUrl,
       essenceIds: essences.map((e) => e.id),
     };
 
-    return NextResponse.json(egg);
+    return NextResponse.json(details);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error creating egg";
-    console.error("create-egg error:", message);
+    console.error("egg-details error:", message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

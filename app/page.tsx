@@ -4,16 +4,28 @@ import { useEffect, useRef, useState } from "react";
 import EssencePicker from "@/components/EssencePicker";
 import EggReveal from "@/components/EggReveal";
 import MonsterStage from "@/components/MonsterStage";
-import { EggData, MonsterData } from "@/lib/types";
+import { EggData, EggDetails, MonsterData } from "@/lib/types";
 
 type Stage = "pick" | "egg" | "monster";
 
-const EGG_STATUS_MESSAGES = ["Blending essences…", "Consulting the Egg Creator…", "Rendering egg artwork…"];
-const HATCH_STATUS_MESSAGES = ["Cracking the shell…", "Designing the monster…", "Rendering monster artwork…", "Rigging idle animation…"];
+const EGG_DETAILS_STATUS_MESSAGES = ["Blending essences…", "Consulting the Egg Creator…"];
+const HATCH_STATUS_MESSAGES = ["Designing the monster…", "Rendering monster sprite sheet…"];
+
+async function postJson<T>(url: string, body: unknown): Promise<T> {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.error ?? `Request to ${url} failed`);
+  return data as T;
+}
 
 export default function Home() {
   const [stage, setStage] = useState<Stage>("pick");
   const [egg, setEgg] = useState<EggData | null>(null);
+  const [eggImageFailed, setEggImageFailed] = useState(false);
   const [monster, setMonster] = useState<MonsterData | null>(null);
   const [loading, setLoading] = useState(false);
   const [statusMessages, setStatusMessages] = useState<string[]>([]);
@@ -21,6 +33,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
 
   const statusTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const monsterPromiseRef = useRef<Promise<MonsterData> | null>(null);
 
   function startStatusCycle(messages: string[]) {
     setStatusMessages(messages);
@@ -31,65 +44,85 @@ export default function Home() {
     }, 3200);
   }
 
-  useEffect(() => {
-    return () => {
-      if (statusTimer.current) clearInterval(statusTimer.current);
-    };
-  }, []);
+  function stopStatusCycle() {
+    if (statusTimer.current) clearInterval(statusTimer.current);
+  }
+
+  useEffect(() => stopStatusCycle, []);
+
+  function beginMonsterGeneration(details: EggDetails) {
+    const promise = postJson<MonsterData>("/api/hatch", {
+      eggName: details.eggName,
+      lore: details.lore,
+      stats: details.stats,
+      essenceIds: details.essenceIds,
+    }).then((m) => {
+      setMonster(m);
+      return m;
+    });
+    monsterPromiseRef.current = promise;
+    promise.catch(() => {}); // prevent unhandled-rejection noise; handleHatch awaits & surfaces the real error
+  }
+
+  function beginEggImage(details: EggDetails) {
+    postJson<{ imageDataUrl: string }>("/api/egg-image", { imagePrompt: details.imagePrompt })
+      .then(({ imageDataUrl }) => {
+        setEgg((prev) => (prev ? { ...prev, imageDataUrl } : prev));
+      })
+      .catch((err) => {
+        console.error("egg-image error:", err);
+        setEggImageFailed(true);
+      });
+  }
 
   async function handleForge(essenceIds: string[]) {
     setError(null);
+    setEggImageFailed(false);
+    setMonster(null);
+    monsterPromiseRef.current = null;
     setLoading(true);
-    startStatusCycle(EGG_STATUS_MESSAGES);
+    startStatusCycle(EGG_DETAILS_STATUS_MESSAGES);
     try {
-      const res = await fetch("/api/create-egg", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ essenceIds }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error ?? "Failed to create egg");
-      setEgg(data as EggData);
+      const details = await postJson<EggDetails>("/api/egg-details", { essenceIds });
+      setEgg({ ...details, imageDataUrl: null });
       setStage("egg");
+      // Fire both the egg's own artwork and the monster generation in parallel —
+      // the monster doesn't need the egg image, only the egg's text details.
+      beginEggImage(details);
+      beginMonsterGeneration(details);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create egg");
     } finally {
       setLoading(false);
-      if (statusTimer.current) clearInterval(statusTimer.current);
+      stopStatusCycle();
     }
   }
 
   async function handleHatch() {
-    if (!egg) return;
     setError(null);
+    if (monster) {
+      setStage("monster");
+      return;
+    }
+    if (!monsterPromiseRef.current) return;
     setLoading(true);
     startStatusCycle(HATCH_STATUS_MESSAGES);
     try {
-      const res = await fetch("/api/hatch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          eggName: egg.eggName,
-          lore: egg.lore,
-          stats: egg.stats,
-          essenceIds: egg.essenceIds,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error ?? "Failed to hatch egg");
-      setMonster(data as MonsterData);
+      await monsterPromiseRef.current;
       setStage("monster");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to hatch egg");
     } finally {
       setLoading(false);
-      if (statusTimer.current) clearInterval(statusTimer.current);
+      stopStatusCycle();
     }
   }
 
   function handleRestart() {
     setEgg(null);
+    setEggImageFailed(false);
     setMonster(null);
+    monsterPromiseRef.current = null;
     setError(null);
     setStage("pick");
   }
@@ -131,7 +164,7 @@ export default function Home() {
           <EssencePicker onForge={handleForge} loading={loading} />
         )}
         {!loading && !error && stage === "egg" && egg && (
-          <EggReveal egg={egg} onHatch={handleHatch} loading={loading} />
+          <EggReveal egg={egg} onHatch={handleHatch} loading={loading} imageFailed={eggImageFailed} />
         )}
         {!loading && !error && stage === "monster" && monster && (
           <MonsterStage monster={monster} onRestart={handleRestart} />

@@ -1,7 +1,7 @@
 "use client";
 
 import { MonsterData } from "@/lib/types";
-import MeshCanvas from "./MeshCanvas";
+import SpriteAnimator from "./SpriteAnimator";
 
 export default function MonsterStage({
   monster,
@@ -16,7 +16,7 @@ export default function MonsterStage({
         <div className="absolute bottom-2 w-40 h-8 rounded-full bg-[var(--accent)]/30 blur-xl" />
         <div className="absolute inset-0 rounded-full blur-3xl opacity-30 bg-[var(--accent-2)]" />
         <div className="relative">
-          <MeshCanvas imageDataUrl={monster.imageDataUrl} points={monster.meshPoints} size={280} />
+          <SpriteAnimator imageDataUrl={monster.imageDataUrl} size={280} />
         </div>
       </div>
 

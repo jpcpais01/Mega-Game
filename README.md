@@ -2,33 +2,42 @@
 
 A mobile-first, installable PWA prototype for Mega Game's core loop: combine elemental essences into an egg,
 watch it get designed and illustrated by an AI art pipeline, then hatch it into a monster that idles on screen
-with a lightweight procedural mesh-warp animation.
+as a looping pixel-art sprite animation.
 
 ## How the loop works
 
 1. **Pick essences** — choose 1–5 essences (of 20, repeats allowed) in `components/EssencePicker.tsx`.
-2. **`POST /api/create-egg`** (`app/api/create-egg/route.ts`)
-   - Calls the **Egg Creator** LLM (`openai/gpt-5.6-luna` via OpenRouter chat completions, JSON mode) with the
-     chosen essences. It returns an egg name, a ≤20-word mini lore, five 1–100 stats, and a text-to-image prompt.
-   - Sends that prompt to the **image model** (`openai/gpt-image-2.5-flare` via OpenRouter's `/images` endpoint)
-     with a transparent background, ~20°-off-front framing, requesting only the egg (no scenery).
-3. **Reveal** — `components/EggReveal.tsx` shows the egg art, name, lore and animated stat bars, with a "Hatch"
-   button.
+2. **`POST /api/egg-details`** (`app/api/egg-details/route.ts`) — calls the **Egg Creator** LLM
+   (`openai/gpt-5.6-luna` via OpenRouter chat completions, JSON mode) with the chosen essences. Returns an egg
+   name, a ≤20-word mini lore, five 1–100 stats, and a text-to-image prompt. This is the only step the player
+   waits on — it's a fast text-only call.
+3. **Reveal** — `components/EggReveal.tsx` shows the egg immediately (name/lore/stats), with the artwork area as
+   a shimmering placeholder. The instant the egg's details come back, the app fires two requests **in parallel**
+   (see `app/page.tsx`):
+   - **`POST /api/egg-image`** renders the egg's artwork (isometric pixel art, transparent background).
+   - **`POST /api/hatch`** starts designing and rendering the monster — it only needs the egg's name/lore/stats,
+     not its finished artwork, so there's no reason to wait for the egg image first.
+   Both results stream into the UI as they land; by the time the player taps "Hatch," the monster is often
+   already done.
 4. **`POST /api/hatch`** (`app/api/hatch/route.ts`)
    - Calls the **Monster Designer** LLM with the egg's name/lore/stats/essences to get a monster name, lore, and
-     an image prompt (explicitly excluding any egg/shell — full-body monster only, transparent background).
-   - Generates the monster image the same way as the egg.
-   - Sends that monster image to the **Animation Thinker** LLM (multimodal chat completion, image input) and
-     asks it to act as a 2D animator choosing 4–7 anchor points (normalized x/y) on the creature's silhouette for
-     an idle "breathing" mesh animation. If this call fails or returns something malformed, a deterministic
-     fallback point set is generated instead (`lib/mesh.ts`) so the game never gets stuck.
-5. **Idle animation** — `components/MeshCanvas.tsx` subdivides the monster image into a triangle grid, computes
-   each grid vertex's displacement every frame via inverse-distance-weighted blending of the anchor points (each
-   oscillating on its own sine wave), and redraws the grid using per-triangle affine-mapped `drawImage` calls —
-   a lightweight "stretchy mesh puppet" effect with no external animation library.
+     an image prompt (explicitly excluding any egg/shell — full-body monster only).
+   - Generates the monster as a **sprite sheet**: a single 1024×1024 image containing a 4×4 grid of 16 pixel-art
+     animation frames (isometric front-left view) depicting a simple looping idle animation, requested directly
+     from the image model in one shot — no separate "figure out the animation" step needed.
+5. **Idle animation** — `components/SpriteAnimator.tsx` is a small canvas that slices the sheet into its 16
+   256×256 cells (`lib/sprite.ts` has the grid constants) and steps through them at a fixed frame rate with
+   `imageSmoothingEnabled = false` for crisp pixel edges — a classic sprite-sheet player, no external library.
 
-All three LLM calls and both image calls happen server-side in the two API routes so the OpenRouter key is never
-exposed to the client.
+### Background transparency
+
+The image model's OpenRouter route only accepts `background: "auto" | "opaque"` in principle, but empirically
+(see `lib/openrouter.ts`) it sometimes *does* honor `background: "transparent"` too — so `generateImage()` tries
+that first, and only falls back to a chroma-key pipeline (paint a flat solid magenta background, then strip it
+to real alpha server-side with `sharp`, see `lib/chroma-key.ts`) if the transparent request is rejected. The
+outcome is cached per warm serverless instance so later calls skip straight to whichever strategy actually works.
+
+All LLM and image calls happen server-side in the API routes so the OpenRouter key is never exposed to the client.
 
 ## Setup
 
@@ -39,7 +48,7 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000). The essence-forge flow works fully once the API key is set;
-without it, `create-egg`/`hatch` will return a 500 with a clear error message.
+without it, the API routes return a 500 with a clear error message.
 
 ## Deploying on Vercel
 
@@ -51,8 +60,12 @@ without it, `create-egg`/`hatch` will return a 500 with a clear error message.
 ## Notes / follow-ups
 
 - Essence definitions live in `lib/essences.ts` — add/edit essences there.
-- Prompts for all three LLM roles live in `lib/prompts.ts`.
+- Prompts for both LLM roles live in `lib/prompts.ts`. Background and sprite-sheet framing instructions are
+  deliberately kept OUT of the LLM-authored `imagePrompt` and appended programmatically in `lib/openrouter.ts` —
+  that's what lets the background strategy and sprite-sheet toggle change without a second text-LLM call.
 - The OpenRouter request/response plumbing is isolated in `lib/openrouter.ts` so swapping models later is a
   one-line change.
+- Sprite sheets are currently a single fixed camera angle (front-left isometric) and a single idle animation —
+  more directions/animations would mean more grid cells or more sheets per monster.
 - This build covers the essence → egg → hatch → idle-monster core loop only, as scoped — no persistence,
   collection screen, or battling yet.

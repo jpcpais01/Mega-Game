@@ -8,23 +8,31 @@ export default function EggReveal({
   egg,
   onHatch,
   loading,
+  imageFailed = false,
 }: {
   egg: EggData;
   onHatch: () => void;
   loading: boolean;
+  imageFailed?: boolean;
 }) {
   return (
     <div className="flex flex-col items-center gap-6 w-full pop-in">
       <div className="relative w-56 h-56 flex items-center justify-center">
         <div className="absolute inset-0 rounded-full blur-3xl opacity-40 bg-[var(--accent)]" />
-        <Image
-          src={egg.imageDataUrl}
-          alt={egg.eggName}
-          width={512}
-          height={512}
-          unoptimized
-          className="relative w-full h-full object-contain float drop-shadow-[0_20px_40px_rgba(0,0,0,0.5)]"
-        />
+        {egg.imageDataUrl ? (
+          <Image
+            src={egg.imageDataUrl}
+            alt={egg.eggName}
+            width={512}
+            height={512}
+            unoptimized
+            className="relative w-full h-full object-contain float drop-shadow-[0_20px_40px_rgba(0,0,0,0.5)]"
+          />
+        ) : imageFailed ? (
+          <div className="relative text-7xl float opacity-70">🥚</div>
+        ) : (
+          <div className="relative w-4/5 h-4/5 rounded-full shimmer" />
+        )}
       </div>
 
       <div className="text-center">

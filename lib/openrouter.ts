@@ -1,4 +1,5 @@
 import { CHROMA_KEY_HEX, chromaKeyToTransparentPng } from "./chroma-key";
+import { SPRITE_SHEET_SUFFIX } from "./sprite";
 
 const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
 
@@ -127,13 +128,15 @@ export async function generateImage(params: {
   prompt: string;
   aspectRatio?: string;
   quality?: string;
+  spriteSheet?: boolean;
 }): Promise<string> {
   const aspectRatio = params.aspectRatio ?? "1:1";
   const quality = params.quality ?? "high";
+  const basePrompt = params.spriteSheet ? `${params.prompt} ${SPRITE_SHEET_SUFFIX}` : params.prompt;
 
   if (nativeTransparentSupport !== "no") {
     const transparentResult = await requestImage({
-      prompt: `${params.prompt} ${TRANSPARENT_BG_SUFFIX}`,
+      prompt: `${basePrompt} ${TRANSPARENT_BG_SUFFIX}`,
       aspectRatio,
       quality,
       background: "transparent",
@@ -149,7 +152,7 @@ export async function generateImage(params: {
   }
 
   const chromaResult = await requestImage({
-    prompt: `${params.prompt} ${CHROMA_KEY_BG_SUFFIX}`,
+    prompt: `${basePrompt} ${CHROMA_KEY_BG_SUFFIX}`,
     aspectRatio,
     quality,
     background: "opaque",
