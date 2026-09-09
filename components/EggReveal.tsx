@@ -1,7 +1,7 @@
 "use client";
 
-import Image from "next/image";
 import { EggData } from "@/lib/types";
+import SpriteAnimator from "./SpriteAnimator";
 import StatBar from "./StatBar";
 
 export default function EggReveal({
@@ -20,14 +20,9 @@ export default function EggReveal({
       <div className="relative w-56 h-56 flex items-center justify-center">
         <div className="absolute inset-0 rounded-full blur-3xl opacity-40 bg-[var(--accent)]" />
         {egg.imageDataUrl ? (
-          <Image
-            src={egg.imageDataUrl}
-            alt={egg.eggName}
-            width={512}
-            height={512}
-            unoptimized
-            className="relative w-full h-full object-contain float drop-shadow-[0_20px_40px_rgba(0,0,0,0.5)]"
-          />
+          <div className="relative drop-shadow-[0_20px_40px_rgba(0,0,0,0.5)]">
+            <SpriteAnimator imageDataUrl={egg.imageDataUrl} size={224} />
+          </div>
         ) : imageFailed ? (
           <div className="relative text-7xl float opacity-70">🥚</div>
         ) : (

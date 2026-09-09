@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "imagePrompt is required" }, { status: 400 });
     }
 
-    const imageDataUrl = await generateImage({ prompt: imagePrompt });
+    const imageDataUrl = await generateImage({ prompt: imagePrompt, spriteSheet: true });
     return NextResponse.json({ imageDataUrl });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error rendering egg image";

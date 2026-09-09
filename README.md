@@ -1,8 +1,8 @@
 # Mega Game — Essence Forge
 
 A mobile-first, installable PWA prototype for Mega Game's core loop: combine elemental essences into an egg,
-watch it get designed and illustrated by an AI art pipeline, then hatch it into a monster that idles on screen
-as a looping pixel-art sprite animation.
+watch it get designed and illustrated by an AI art pipeline, then hatch it into a monster — both the egg and the
+monster idle on screen as looping pixel-art sprite animations.
 
 ## How the loop works
 
@@ -14,20 +14,24 @@ as a looping pixel-art sprite animation.
 3. **Reveal** — `components/EggReveal.tsx` shows the egg immediately (name/lore/stats), with the artwork area as
    a shimmering placeholder. The instant the egg's details come back, the app fires two requests **in parallel**
    (see `app/page.tsx`):
-   - **`POST /api/egg-image`** renders the egg's artwork (isometric pixel art, transparent background).
+   - **`POST /api/egg-image`** renders the egg's artwork as a sprite sheet (see below) — a soft glow pulse or
+     gentle wobble, not it cracking or hatching.
    - **`POST /api/hatch`** starts designing and rendering the monster — it only needs the egg's name/lore/stats,
      not its finished artwork, so there's no reason to wait for the egg image first.
    Both results stream into the UI as they land; by the time the player taps "Hatch," the monster is often
    already done.
-4. **`POST /api/hatch`** (`app/api/hatch/route.ts`)
-   - Calls the **Monster Designer** LLM with the egg's name/lore/stats/essences to get a monster name, lore, and
-     an image prompt (explicitly excluding any egg/shell — full-body monster only).
-   - Generates the monster as a **sprite sheet**: a single 1024×1024 image containing a 4×4 grid of 16 pixel-art
-     animation frames (isometric front-left view) depicting a simple looping idle animation, requested directly
-     from the image model in one shot — no separate "figure out the animation" step needed.
-5. **Idle animation** — `components/SpriteAnimator.tsx` is a small canvas that slices the sheet into its 16
-   256×256 cells (`lib/sprite.ts` has the grid constants) and steps through them at a fixed frame rate with
-   `imageSmoothingEnabled = false` for crisp pixel edges — a classic sprite-sheet player, no external library.
+4. **`POST /api/hatch`** (`app/api/hatch/route.ts`) calls the **Monster Designer** LLM with the egg's
+   name/lore/stats/essences to get a monster name, lore, and an image prompt (explicitly excluding any
+   egg/shell — full-body monster only), then renders it the same sprite-sheet way as the egg.
+5. **Sprite sheets** — every generated image (egg and monster alike) is requested as a single 1024×1024 image
+   containing a 4×4 grid of 16 pixel-art animation frames (isometric front-left view) depicting a simple
+   looping idle animation appropriate to the subject, requested directly from the image model in one shot — no
+   separate "figure out the animation" step needed (`lib/sprite.ts` has the grid constants and the shared
+   instruction text; `lib/openrouter.ts`'s `generateImage({ spriteSheet: true })` appends it).
+   `components/SpriteAnimator.tsx` is the canvas player: it slices the sheet into its 16 256×256 cells and steps
+   through them at a fixed frame rate with `imageSmoothingEnabled = false` for crisp pixel edges — a classic
+   sprite-sheet player, no external library. Used for both the egg (`EggReveal.tsx`) and the monster
+   (`MonsterStage.tsx`).
 
 ### Background transparency
 
