@@ -4,6 +4,7 @@ import {
   GoogleAuthProvider,
   getRedirectResult,
   onAuthStateChanged,
+  signInWithPopup,
   signInWithRedirect,
   signOut as firebaseSignOut,
   type User,
@@ -47,17 +48,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return unsubscribe;
   }, []);
 
-  function signIn() {
+  async function signIn() {
     if (!isFirebaseConfigured()) {
       console.warn("Sign-in unavailable: Firebase is not configured (missing NEXT_PUBLIC_FIREBASE_* env vars).");
       return;
     }
     setAuthError(null);
     const auth = getFirebaseAuth();
-    signInWithRedirect(auth, new GoogleAuthProvider()).catch((err) => {
-      console.error("signInWithRedirect error:", err);
+
+    // Popup resolves directly in this same page load — no cross-origin
+    // round-trip to lose state over, which is what made signInWithRedirect
+    // unreliable inside an installed PWA (it can come back with no user and
+    // no error, looking like nothing happened). Only fall back to redirect
+    // if the environment genuinely can't do a popup.
+    try {
+      await signInWithPopup(auth, new GoogleAuthProvider());
+    } catch (err) {
+      const code = (err as { code?: string } | null)?.code;
+      if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
+        return; // the user closed it themselves — not an error
+      }
+      if (code === "auth/popup-blocked" || code === "auth/operation-not-supported-in-this-environment") {
+        signInWithRedirect(auth, new GoogleAuthProvider()).catch((redirectErr) => {
+          console.error("signInWithRedirect fallback error:", redirectErr);
+          setAuthError(describeAuthError(redirectErr));
+        });
+        return;
+      }
+      console.error("signInWithPopup error:", err);
       setAuthError(describeAuthError(err));
-    });
+    }
   }
 
   async function signOut() {
