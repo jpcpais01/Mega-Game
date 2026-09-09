@@ -3,6 +3,10 @@ import sharp from "sharp";
 import { SPRITE_GRID_COLS, SPRITE_GRID_ROWS } from "./sprite";
 
 const SIZE = 1024;
+// How many extra fine ruler lines to draw inside each frame cell, on top of
+// the bold frame-boundary lines — gives the model a much more precise
+// positional reference (like graph paper) than the coarse 3x3 grid alone.
+const FINE_SUBDIVISIONS = 3;
 
 function cellCenters(): { x: number; y: number }[] {
   const cellW = SIZE / SPRITE_GRID_COLS;
@@ -16,19 +20,39 @@ function cellCenters(): { x: number; y: number }[] {
   return centers;
 }
 
+// Two-tier grid: bold black lines mark the actual frame boundaries, thin
+// gray lines subdivide each frame further as a fine alignment ruler.
 function gridLinesSvg(): string {
   const cellW = SIZE / SPRITE_GRID_COLS;
   const cellH = SIZE / SPRITE_GRID_ROWS;
-  let lines = "";
+  const fineCols = SPRITE_GRID_COLS * FINE_SUBDIVISIONS;
+  const fineRows = SPRITE_GRID_ROWS * FINE_SUBDIVISIONS;
+  const fineCellW = SIZE / fineCols;
+  const fineCellH = SIZE / fineRows;
+
+  let fine = "";
+  for (let c = 1; c < fineCols; c++) {
+    if (c % FINE_SUBDIVISIONS === 0) continue; // that's a bold boundary line, drawn separately
+    const x = c * fineCellW;
+    fine += `<line x1="${x}" y1="0" x2="${x}" y2="${SIZE}" stroke="#999" stroke-width="1"/>`;
+  }
+  for (let r = 1; r < fineRows; r++) {
+    if (r % FINE_SUBDIVISIONS === 0) continue;
+    const y = r * fineCellH;
+    fine += `<line x1="0" y1="${y}" x2="${SIZE}" y2="${y}" stroke="#999" stroke-width="1"/>`;
+  }
+
+  let bold = "";
   for (let c = 1; c < SPRITE_GRID_COLS; c++) {
     const x = c * cellW;
-    lines += `<line x1="${x}" y1="0" x2="${x}" y2="${SIZE}" stroke="black" stroke-width="2"/>`;
+    bold += `<line x1="${x}" y1="0" x2="${x}" y2="${SIZE}" stroke="black" stroke-width="3"/>`;
   }
   for (let r = 1; r < SPRITE_GRID_ROWS; r++) {
     const y = r * cellH;
-    lines += `<line x1="0" y1="${y}" x2="${SIZE}" y2="${y}" stroke="black" stroke-width="2"/>`;
+    bold += `<line x1="0" y1="${y}" x2="${SIZE}" y2="${y}" stroke="black" stroke-width="3"/>`;
   }
-  return lines;
+
+  return fine + bold;
 }
 
 function dotsSvg(): string {
@@ -88,7 +112,7 @@ export function eggGridAlignmentTemplate(): Promise<string> {
 }
 
 export const GRID_TEMPLATE_INSTRUCTION =
-  "One of the attached reference images is a plain alignment TEMPLATE, not a design reference — a 3x3 grid with a small black dot marking the exact center of each cell. Use it purely as an invisible layout guide: render the subject at the exact same scale in every cell, perfectly centered on that cell's dot, with the subject's bounding box matching that cell's boundaries. Do NOT copy, reproduce, or draw the template's grid lines, dots, or white background in your output — the final image must contain only the subject itself with no visible guide marks.";
+  "One of the attached reference images is a plain alignment TEMPLATE, not a design reference — a 3x3 grid (bold lines mark each frame's boundary) with a thin fine ruler sub-grid inside every cell and a small black dot marking the exact center. Use it purely as an invisible layout guide: render the subject at the exact same scale in every cell, perfectly centered on that cell's dot, using the fine ruler lines to judge exact size and position so every frame lines up identically. Do NOT copy, reproduce, or draw ANY of the template's bold lines, fine ruler lines, dots, or white background in your output — the final image must contain only the subject itself with zero visible guide marks.";
 
 export const EGG_GRID_TEMPLATE_INSTRUCTION =
-  "The attached reference image is a plain alignment TEMPLATE, not a design reference — a 3x3 grid with a small black dot and a thin egg-shaped outline marking the exact center, size, and silhouette for each cell. Use it purely as an invisible layout guide: draw your fully designed, fully styled egg so its silhouette matches that thin outline's position and size exactly in every cell, centered on the dot. Do NOT copy, reproduce, or draw the template's grid lines, dots, thin outline, or white background in your output — the final image must contain only your fully rendered egg with no visible guide marks.";
+  "The attached reference image is a plain alignment TEMPLATE, not a design reference — a 3x3 grid (bold lines mark each frame's boundary) with a thin fine ruler sub-grid inside every cell, a small black dot at the exact center, and a thin egg-shaped outline marking the exact size and silhouette for each cell. Use it purely as an invisible layout guide: draw your fully designed, fully styled egg so its silhouette matches that thin outline's position and size exactly in every cell, using the fine ruler lines to judge exact placement. Do NOT copy, reproduce, or draw ANY of the template's bold lines, fine ruler lines, dots, thin egg outline, or white background in your output — the final image must contain only your fully rendered egg with zero visible guide marks.";
