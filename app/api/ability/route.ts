@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { GRID_TEMPLATE_INSTRUCTION, gridAlignmentTemplate } from "@/lib/grid-template";
 import { generateImage } from "@/lib/openrouter";
 import { abilityAnimationMotion, abilityAnimationPrompt } from "@/lib/prompts";
 
@@ -26,9 +27,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const template = await gridAlignmentTemplate();
     const imageDataUrl = await generateImage({
-      prompt: abilityAnimationPrompt({ monsterName, abilityName, abilityDescription }),
-      referenceImages: [monsterImageDataUrl],
+      prompt: `${abilityAnimationPrompt({ monsterName, abilityName, abilityDescription })} ${GRID_TEMPLATE_INSTRUCTION}`,
+      referenceImages: [monsterImageDataUrl, template],
       spriteSheet: abilityAnimationMotion({ abilityName, abilityDescription }),
     });
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Essence, ESSENCES } from "@/lib/essences";
+import { GRID_TEMPLATE_INSTRUCTION, gridAlignmentTemplate } from "@/lib/grid-template";
 import { callChatJSON, generateImage } from "@/lib/openrouter";
 import { monsterDesignerSystemPrompt, monsterDesignerUserPrompt } from "@/lib/prompts";
 import { Ability, EggStat, MonsterData } from "@/lib/types";
@@ -86,7 +87,12 @@ export async function POST(req: NextRequest) {
     });
     const monsterJson = validateMonsterJson(rawMonsterJson, essences);
 
-    const imageDataUrl = await generateImage({ prompt: monsterJson.imagePrompt, spriteSheet: true });
+    const template = await gridAlignmentTemplate();
+    const imageDataUrl = await generateImage({
+      prompt: `${monsterJson.imagePrompt} ${GRID_TEMPLATE_INSTRUCTION}`,
+      referenceImages: [template],
+      spriteSheet: true,
+    });
 
     const monster: MonsterData = {
       ...monsterJson,
