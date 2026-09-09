@@ -1,4 +1,4 @@
-const CACHE_NAME = "mega-game-v1";
+const CACHE_NAME = "mega-game-v2";
 const PRECACHE_URLS = ["/", "/manifest.json"];
 
 self.addEventListener("install", (event) => {
@@ -24,18 +24,17 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
   if (url.pathname.startsWith("/api/")) return;
 
+  // Network-first: always prefer a fresh response so a new deploy is picked
+  // up immediately, and only fall back to the cache when actually offline.
   event.respondWith(
-    caches.match(request).then((cached) => {
-      const network = fetch(request)
-        .then((response) => {
-          if (response && response.status === 200) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-          }
-          return response;
-        })
-        .catch(() => cached);
-      return cached || network;
-    })
+    fetch(request)
+      .then((response) => {
+        if (response && response.status === 200) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+        }
+        return response;
+      })
+      .catch(() => caches.match(request))
   );
 });
