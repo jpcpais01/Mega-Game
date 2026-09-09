@@ -1,69 +1,142 @@
-import Image from "next/image";
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import EssencePicker from "@/components/EssencePicker";
+import EggReveal from "@/components/EggReveal";
+import MonsterStage from "@/components/MonsterStage";
+import { EggData, MonsterData } from "@/lib/types";
+
+type Stage = "pick" | "egg" | "monster";
+
+const EGG_STATUS_MESSAGES = ["Blending essences…", "Consulting the Egg Creator…", "Rendering egg artwork…"];
+const HATCH_STATUS_MESSAGES = ["Cracking the shell…", "Designing the monster…", "Rendering monster artwork…", "Rigging idle animation…"];
 
 export default function Home() {
+  const [stage, setStage] = useState<Stage>("pick");
+  const [egg, setEgg] = useState<EggData | null>(null);
+  const [monster, setMonster] = useState<MonsterData | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [statusMessages, setStatusMessages] = useState<string[]>([]);
+  const [statusIndex, setStatusIndex] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+
+  const statusTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  function startStatusCycle(messages: string[]) {
+    setStatusMessages(messages);
+    setStatusIndex(0);
+    if (statusTimer.current) clearInterval(statusTimer.current);
+    statusTimer.current = setInterval(() => {
+      setStatusIndex((i) => Math.min(i + 1, messages.length - 1));
+    }, 3200);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (statusTimer.current) clearInterval(statusTimer.current);
+    };
+  }, []);
+
+  async function handleForge(essenceIds: string[]) {
+    setError(null);
+    setLoading(true);
+    startStatusCycle(EGG_STATUS_MESSAGES);
+    try {
+      const res = await fetch("/api/create-egg", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ essenceIds }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Failed to create egg");
+      setEgg(data as EggData);
+      setStage("egg");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create egg");
+    } finally {
+      setLoading(false);
+      if (statusTimer.current) clearInterval(statusTimer.current);
+    }
+  }
+
+  async function handleHatch() {
+    if (!egg) return;
+    setError(null);
+    setLoading(true);
+    startStatusCycle(HATCH_STATUS_MESSAGES);
+    try {
+      const res = await fetch("/api/hatch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eggName: egg.eggName,
+          lore: egg.lore,
+          stats: egg.stats,
+          essenceIds: egg.essenceIds,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Failed to hatch egg");
+      setMonster(data as MonsterData);
+      setStage("monster");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to hatch egg");
+    } finally {
+      setLoading(false);
+      if (statusTimer.current) clearInterval(statusTimer.current);
+    }
+  }
+
+  function handleRestart() {
+    setEgg(null);
+    setMonster(null);
+    setError(null);
+    setStage("pick");
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+    <main
+      className="min-h-dvh flex flex-col items-center px-4 pb-8"
+      style={{ paddingTop: "calc(var(--safe-top) + 1.5rem)" }}
+    >
+      <header className="w-full max-w-md flex flex-col items-center gap-1 mb-6">
+        <div className="text-3xl">🥚</div>
+        <h1 className="text-xl font-extrabold tracking-tight">Mega Game</h1>
+        <p className="text-xs text-[var(--text-dim)]">Essence Forge</p>
+      </header>
+
+      <div className="w-full max-w-md flex-1 flex flex-col items-center justify-center">
+        {loading && (
+          <div className="flex flex-col items-center gap-4 py-10">
+            <div className="w-16 h-16 rounded-full border-4 border-[var(--accent)]/30 border-t-[var(--accent)] spin-slow" />
+            <p className="text-sm text-[var(--text-dim)] text-center min-h-[1.5em]">
+              {statusMessages[statusIndex]}
+            </p>
+          </div>
+        )}
+
+        {!loading && error && (
+          <div className="glass-panel rounded-2xl p-4 w-full text-center flex flex-col gap-3">
+            <p className="text-sm text-[var(--danger)]">{error}</p>
+            <button
+              className="glow-btn rounded-xl py-3 text-sm font-bold"
+              onClick={() => setError(null)}
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+              Try again
+            </button>
+          </div>
+        )}
+
+        {!loading && !error && stage === "pick" && (
+          <EssencePicker onForge={handleForge} loading={loading} />
+        )}
+        {!loading && !error && stage === "egg" && egg && (
+          <EggReveal egg={egg} onHatch={handleHatch} loading={loading} />
+        )}
+        {!loading && !error && stage === "monster" && monster && (
+          <MonsterStage monster={monster} onRestart={handleRestart} />
+        )}
+      </div>
+    </main>
   );
 }

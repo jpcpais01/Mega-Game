@@ -1,0 +1,36 @@
+"use client";
+
+import { MonsterData } from "@/lib/types";
+import MeshCanvas from "./MeshCanvas";
+
+export default function MonsterStage({
+  monster,
+  onRestart,
+}: {
+  monster: MonsterData;
+  onRestart: () => void;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-6 w-full pop-in">
+      <div className="relative w-72 h-72 flex items-center justify-center">
+        <div className="absolute bottom-2 w-40 h-8 rounded-full bg-[var(--accent)]/30 blur-xl" />
+        <div className="absolute inset-0 rounded-full blur-3xl opacity-30 bg-[var(--accent-2)]" />
+        <div className="relative">
+          <MeshCanvas imageDataUrl={monster.imageDataUrl} points={monster.meshPoints} size={280} />
+        </div>
+      </div>
+
+      <div className="text-center">
+        <h2 className="text-2xl font-bold">{monster.monsterName}</h2>
+        <p className="text-sm text-[var(--text-dim)] mt-1 max-w-xs mx-auto">{monster.lore}</p>
+      </div>
+
+      <button
+        className="glow-btn w-full rounded-2xl py-4 text-base font-bold tracking-wide text-white"
+        onClick={onRestart}
+      >
+        Forge Another Egg
+      </button>
+    </div>
+  );
+}

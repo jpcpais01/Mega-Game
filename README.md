@@ -1,36 +1,58 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Mega Game — Essence Forge
 
-## Getting Started
+A mobile-first, installable PWA prototype for Mega Game's core loop: combine elemental essences into an egg,
+watch it get designed and illustrated by an AI art pipeline, then hatch it into a monster that idles on screen
+with a lightweight procedural mesh-warp animation.
 
-First, run the development server:
+## How the loop works
+
+1. **Pick essences** — choose 1–5 essences (of 20, repeats allowed) in `components/EssencePicker.tsx`.
+2. **`POST /api/create-egg`** (`app/api/create-egg/route.ts`)
+   - Calls the **Egg Creator** LLM (`openai/gpt-5.6-luna` via OpenRouter chat completions, JSON mode) with the
+     chosen essences. It returns an egg name, a ≤20-word mini lore, five 1–100 stats, and a text-to-image prompt.
+   - Sends that prompt to the **image model** (`openai/gpt-image-2.5-flare` via OpenRouter's `/images` endpoint)
+     with a transparent background, ~20°-off-front framing, requesting only the egg (no scenery).
+3. **Reveal** — `components/EggReveal.tsx` shows the egg art, name, lore and animated stat bars, with a "Hatch"
+   button.
+4. **`POST /api/hatch`** (`app/api/hatch/route.ts`)
+   - Calls the **Monster Designer** LLM with the egg's name/lore/stats/essences to get a monster name, lore, and
+     an image prompt (explicitly excluding any egg/shell — full-body monster only, transparent background).
+   - Generates the monster image the same way as the egg.
+   - Sends that monster image to the **Animation Thinker** LLM (multimodal chat completion, image input) and
+     asks it to act as a 2D animator choosing 4–7 anchor points (normalized x/y) on the creature's silhouette for
+     an idle "breathing" mesh animation. If this call fails or returns something malformed, a deterministic
+     fallback point set is generated instead (`lib/mesh.ts`) so the game never gets stuck.
+5. **Idle animation** — `components/MeshCanvas.tsx` subdivides the monster image into a triangle grid, computes
+   each grid vertex's displacement every frame via inverse-distance-weighted blending of the anchor points (each
+   oscillating on its own sine wave), and redraws the grid using per-triangle affine-mapped `drawImage` calls —
+   a lightweight "stretchy mesh puppet" effect with no external animation library.
+
+All three LLM calls and both image calls happen server-side in the two API routes so the OpenRouter key is never
+exposed to the client.
+
+## Setup
 
 ```bash
+npm install
+cp .env.example .env.local   # then fill in OPENROUTER_API_KEY
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000). The essence-forge flow works fully once the API key is set;
+without it, `create-egg`/`hatch` will return a 500 with a clear error message.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Deploying on Vercel
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Push this repo to GitHub and import it into Vercel.
+2. In the Vercel project's **Settings → Environment Variables**, add `OPENROUTER_API_KEY` with your OpenRouter key.
+3. Deploy. The app is a PWA (`public/manifest.json`, `public/sw.js`, icons in `public/icons/`) — on a phone,
+   "Add to Home Screen" installs it as a standalone app.
 
-## Learn More
+## Notes / follow-ups
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Essence definitions live in `lib/essences.ts` — add/edit essences there.
+- Prompts for all three LLM roles live in `lib/prompts.ts`.
+- The OpenRouter request/response plumbing is isolated in `lib/openrouter.ts` so swapping models later is a
+  one-line change.
+- This build covers the essence → egg → hatch → idle-monster core loop only, as scoped — no persistence,
+  collection screen, or battling yet.
