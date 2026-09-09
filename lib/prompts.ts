@@ -55,11 +55,21 @@ distinct silhouette and color palette drawn from its essences. Absolutely do NOT
 fragments, or hatching remnants in the image — only the finished monster, standing in a light idle pose suitable
 for a game character sprite.
 
+You must also invent exactly 4 candidate first abilities the player can choose between to teach this monster —
+distinct, flavorful, and grounded in its essences (e.g. a fire-essence monster might get "Ember Claw" or "Heat
+Haze"). Each needs a short punchy name and a one-sentence description of what it visually does, concrete enough
+that an artist could draw the creature performing it (a specific motion, effect, or attack — not vague flavor
+text).
+
 Respond with ONLY a strict JSON object, no prose, matching exactly this shape:
 {
   "monsterName": string (a creature name, can riff on the egg name),
   "lore": string (max 20 words, punchy mini lore for the hatched monster),
-  "imagePrompt": string (a single detailed text-to-image prompt describing ONLY the monster's appearance — anatomy, colors, textures, silhouette — following the art direction above; do not mention background)
+  "imagePrompt": string (a single detailed text-to-image prompt describing ONLY the monster's appearance — anatomy, colors, textures, silhouette — following the art direction above; do not mention background),
+  "abilities": [
+    { "name": string (2-4 words), "description": string (max 15 words, describes a concrete visual action/effect) }
+    // exactly 4 of these, each a distinctly different ability
+  ]
 }`;
 }
 
@@ -72,4 +82,15 @@ export function monsterDesignerUserPrompt(params: {
   const statsList = params.stats.map((s) => `${s.name}: ${s.value}/100`).join(", ");
   const essenceList = params.essences.map((e) => e.name).join(", ");
   return `Egg name: ${params.eggName}\nEgg lore: ${params.lore}\nEgg stats: ${statsList}\nEssences used: ${essenceList}\n\nDesign the hatched monster now.`;
+}
+
+// Used for the image-to-image ability-animation request: the reference image
+// already shows the monster's exact design, so this only needs to describe
+// the action — re-describing appearance would fight the reference image.
+export function abilityAnimationPrompt(params: { monsterName: string; abilityName: string; abilityDescription: string }): string {
+  return `This is ${params.monsterName}, an existing game creature. Using this exact reference image — same character design, proportions, colors, and art style, do not redesign it — depict it performing its ability "${params.abilityName}": ${params.abilityDescription}`;
+}
+
+export function abilityAnimationMotion(params: { abilityName: string; abilityDescription: string }): string {
+  return `the creature performing its ability "${params.abilityName}" (${params.abilityDescription}) as a single continuous action`;
 }

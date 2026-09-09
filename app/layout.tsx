@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Outfit } from "next/font/google";
+import { AuthProvider } from "@/components/AuthProvider";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import "./globals.css";
 
@@ -40,7 +41,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${outfit.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
-        {children}
+        <AuthProvider>{children}</AuthProvider>
         <ServiceWorkerRegister />
       </body>
     </html>

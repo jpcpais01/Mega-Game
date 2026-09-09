@@ -5,10 +5,12 @@ import SpriteAnimator from "./SpriteAnimator";
 
 export default function MonsterStage({
   monster,
-  onRestart,
+  onLearnAbility,
+  onSkip,
 }: {
   monster: MonsterData;
-  onRestart: () => void;
+  onLearnAbility: () => void;
+  onSkip: () => void;
 }) {
   return (
     <div className="flex flex-col items-center gap-6 w-full pop-in">
@@ -27,9 +29,12 @@ export default function MonsterStage({
 
       <button
         className="glow-btn w-full rounded-2xl py-4 text-base font-bold tracking-wide text-white"
-        onClick={onRestart}
+        onClick={onLearnAbility}
       >
-        Forge Another Egg
+        Learn First Ability
+      </button>
+      <button onClick={onSkip} className="text-xs text-[var(--text-dim)] underline underline-offset-2 -mt-3">
+        Skip — forge another egg
       </button>
     </div>
   );

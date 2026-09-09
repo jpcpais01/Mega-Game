@@ -1,5 +1,5 @@
 import { CHROMA_KEY_HEX, chromaKeyToTransparentPng } from "./chroma-key";
-import { SPRITE_SHEET_SUFFIX } from "./sprite";
+import { buildSpriteSheetSuffix } from "./sprite";
 
 const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
 
@@ -97,6 +97,7 @@ async function requestImage(params: {
   aspectRatio: string;
   quality: string;
   background: "transparent" | "opaque";
+  referenceImages?: string[];
 }): Promise<ImagesApiResult> {
   const res = await fetch(`${OPENROUTER_BASE}/images`, {
     method: "POST",
@@ -108,6 +109,9 @@ async function requestImage(params: {
       quality: params.quality,
       background: params.background,
       n: 1,
+      ...(params.referenceImages?.length
+        ? { input_references: params.referenceImages.map((url) => ({ type: "image_url", image_url: { url } })) }
+        : {}),
     }),
   });
 
@@ -128,11 +132,16 @@ export async function generateImage(params: {
   prompt: string;
   aspectRatio?: string;
   quality?: string;
-  spriteSheet?: boolean;
+  /** true = default idle-loop sprite sheet; a string = custom motion description (e.g. an ability action) */
+  spriteSheet?: boolean | string;
+  /** Image-to-image reference(s), e.g. an existing monster sprite sheet to keep the design consistent */
+  referenceImages?: string[];
 }): Promise<string> {
   const aspectRatio = params.aspectRatio ?? "1:1";
   const quality = params.quality ?? "high";
-  const basePrompt = params.spriteSheet ? `${params.prompt} ${SPRITE_SHEET_SUFFIX}` : params.prompt;
+  const basePrompt = params.spriteSheet
+    ? `${params.prompt} ${buildSpriteSheetSuffix(typeof params.spriteSheet === "string" ? params.spriteSheet : undefined)}`
+    : params.prompt;
 
   if (nativeTransparentSupport !== "no") {
     const transparentResult = await requestImage({
@@ -140,6 +149,7 @@ export async function generateImage(params: {
       aspectRatio,
       quality,
       background: "transparent",
+      referenceImages: params.referenceImages,
     });
     if (transparentResult.ok) {
       nativeTransparentSupport = "yes";
@@ -156,6 +166,7 @@ export async function generateImage(params: {
     aspectRatio,
     quality,
     background: "opaque",
+    referenceImages: params.referenceImages,
   });
   if (!chromaResult.ok) {
     throw new Error(`OpenRouter image error ${chromaResult.status}: ${chromaResult.body.slice(0, 500)}`);

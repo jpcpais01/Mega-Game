@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ESSENCES } from "@/lib/essences";
+import { Essence, ESSENCES } from "@/lib/essences";
 import { callChatJSON, generateImage } from "@/lib/openrouter";
 import { monsterDesignerSystemPrompt, monsterDesignerUserPrompt } from "@/lib/prompts";
-import { EggStat, MonsterData } from "@/lib/types";
+import { Ability, EggStat, MonsterData } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 90;
@@ -11,9 +11,34 @@ type RawMonsterJson = {
   monsterName?: unknown;
   lore?: unknown;
   imagePrompt?: unknown;
+  abilities?: unknown;
 };
 
-function validateMonsterJson(raw: unknown): { monsterName: string; lore: string; imagePrompt: string } {
+function validateAbilities(raw: unknown, essences: Essence[]): Ability[] {
+  const abilities: Ability[] = [];
+  if (Array.isArray(raw)) {
+    for (const entry of raw) {
+      const a = entry as { name?: unknown; description?: unknown };
+      if (typeof a.name === "string" && a.name.trim() && typeof a.description === "string" && a.description.trim()) {
+        abilities.push({ name: a.name.trim(), description: a.description.trim() });
+      }
+      if (abilities.length === 4) break;
+    }
+  }
+  while (abilities.length < 4) {
+    const essence = essences[abilities.length % essences.length];
+    abilities.push({
+      name: `${essence.name} Strike`,
+      description: `Channels raw ${essence.name.toLowerCase()} essence into a quick offensive strike.`,
+    });
+  }
+  return abilities;
+}
+
+function validateMonsterJson(
+  raw: unknown,
+  essences: Essence[]
+): { monsterName: string; lore: string; imagePrompt: string; abilities: Ability[] } {
   const data = raw as RawMonsterJson;
   if (typeof data.monsterName !== "string" || !data.monsterName.trim()) {
     throw new Error("Monster designer response missing monsterName");
@@ -24,7 +49,12 @@ function validateMonsterJson(raw: unknown): { monsterName: string; lore: string;
   if (typeof data.imagePrompt !== "string" || !data.imagePrompt.trim()) {
     throw new Error("Monster designer response missing imagePrompt");
   }
-  return { monsterName: data.monsterName.trim(), lore: data.lore.trim(), imagePrompt: data.imagePrompt.trim() };
+  return {
+    monsterName: data.monsterName.trim(),
+    lore: data.lore.trim(),
+    imagePrompt: data.imagePrompt.trim(),
+    abilities: validateAbilities(data.abilities, essences),
+  };
 }
 
 export async function POST(req: NextRequest) {
@@ -54,7 +84,7 @@ export async function POST(req: NextRequest) {
         essences,
       }),
     });
-    const monsterJson = validateMonsterJson(rawMonsterJson);
+    const monsterJson = validateMonsterJson(rawMonsterJson, essences);
 
     const imageDataUrl = await generateImage({ prompt: monsterJson.imagePrompt, spriteSheet: true });
 

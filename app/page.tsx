@@ -1,20 +1,28 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import AbilityChoice from "@/components/AbilityChoice";
+import AbilityLearned from "@/components/AbilityLearned";
+import AppHeader from "@/components/AppHeader";
+import { useAuth } from "@/components/AuthProvider";
 import EssencePicker from "@/components/EssencePicker";
 import EggReveal from "@/components/EggReveal";
 import MonsterStage from "@/components/MonsterStage";
-import { EggData, EggDetails, MonsterData } from "@/lib/types";
+import { Ability, EggData, EggDetails, LearnedAbility, MonsterData } from "@/lib/types";
 
-type Stage = "pick" | "egg" | "monster";
+type Stage = "pick" | "egg" | "monster" | "ability" | "learned";
 
 const EGG_DETAILS_STATUS_MESSAGES = ["Blending essences…", "Consulting the Egg Creator…"];
 const HATCH_STATUS_MESSAGES = ["Designing the monster…", "Rendering monster sprite sheet…"];
+const ABILITY_STATUS_MESSAGES = ["Channeling the ability…", "Rendering ability animation…"];
 
-async function postJson<T>(url: string, body: unknown): Promise<T> {
+async function postJson<T>(url: string, body: unknown, idToken?: string | null): Promise<T> {
   const res = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+    },
     body: JSON.stringify(body),
   });
   const data = await res.json();
@@ -23,10 +31,14 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
 }
 
 export default function Home() {
+  const { user, getIdToken } = useAuth();
+
   const [stage, setStage] = useState<Stage>("pick");
   const [egg, setEgg] = useState<EggData | null>(null);
   const [eggImageFailed, setEggImageFailed] = useState(false);
   const [monster, setMonster] = useState<MonsterData | null>(null);
+  const [learnedAbility, setLearnedAbility] = useState<LearnedAbility | null>(null);
+  const [abilitySaved, setAbilitySaved] = useState(false);
   const [loading, setLoading] = useState(false);
   const [statusMessages, setStatusMessages] = useState<string[]>([]);
   const [statusIndex, setStatusIndex] = useState(0);
@@ -34,6 +46,8 @@ export default function Home() {
 
   const statusTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const monsterPromiseRef = useRef<Promise<MonsterData> | null>(null);
+  const savedMonsterIdPromiseRef = useRef<Promise<string | null> | null>(null);
+  const autoSaveStartedRef = useRef(false);
 
   function startStatusCycle(messages: string[]) {
     setStatusMessages(messages);
@@ -49,6 +63,39 @@ export default function Home() {
   }
 
   useEffect(() => stopStatusCycle, []);
+
+  // The moment we have a hatched monster AND the egg's own artwork, auto-save
+  // the whole thing to the signed-in user's collection in the background —
+  // no explicit "save" button needed. Guests just skip this silently.
+  useEffect(() => {
+    if (autoSaveStartedRef.current) return;
+    if (!monster || !egg?.imageDataUrl) return;
+    autoSaveStartedRef.current = true;
+
+    const promise = (async (): Promise<string | null> => {
+      if (!user) return null;
+      const idToken = await getIdToken();
+      if (!idToken) return null;
+      const saved = await postJson<{ id: string }>(
+        "/api/monsters",
+        {
+          eggName: egg.eggName,
+          eggLore: egg.lore,
+          stats: egg.stats,
+          essenceIds: egg.essenceIds,
+          eggImageDataUrl: egg.imageDataUrl,
+          monsterName: monster.monsterName,
+          monsterLore: monster.lore,
+          monsterImageDataUrl: monster.imageDataUrl,
+          abilities: monster.abilities,
+        },
+        idToken
+      );
+      return saved.id;
+    })();
+    savedMonsterIdPromiseRef.current = promise;
+    promise.catch((err) => console.error("auto-save error:", err));
+  }, [monster, egg, user, getIdToken]);
 
   function beginMonsterGeneration(details: EggDetails) {
     const promise = postJson<MonsterData>("/api/hatch", {
@@ -79,7 +126,11 @@ export default function Home() {
     setError(null);
     setEggImageFailed(false);
     setMonster(null);
+    setLearnedAbility(null);
+    setAbilitySaved(false);
     monsterPromiseRef.current = null;
+    savedMonsterIdPromiseRef.current = null;
+    autoSaveStartedRef.current = false;
     setLoading(true);
     startStatusCycle(EGG_DETAILS_STATUS_MESSAGES);
     try {
@@ -118,11 +169,51 @@ export default function Home() {
     }
   }
 
+  async function handleChooseAbility(ability: Ability) {
+    if (!monster) return;
+    setError(null);
+    setLoading(true);
+    startStatusCycle(ABILITY_STATUS_MESSAGES);
+    try {
+      const { imageDataUrl } = await postJson<{ imageDataUrl: string }>("/api/ability", {
+        monsterName: monster.monsterName,
+        monsterImageDataUrl: monster.imageDataUrl,
+        abilityName: ability.name,
+        abilityDescription: ability.description,
+      });
+      const learned: LearnedAbility = { ...ability, imageDataUrl };
+      setLearnedAbility(learned);
+      setStage("learned");
+
+      const savedId = await savedMonsterIdPromiseRef.current?.catch(() => null);
+      if (savedId) {
+        const idToken = await getIdToken();
+        if (idToken) {
+          await postJson(
+            `/api/monsters/${savedId}/ability`,
+            { abilityName: ability.name, abilityDescription: ability.description, animationImageDataUrl: imageDataUrl },
+            idToken
+          );
+          setAbilitySaved(true);
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to learn ability");
+    } finally {
+      setLoading(false);
+      stopStatusCycle();
+    }
+  }
+
   function handleRestart() {
     setEgg(null);
     setEggImageFailed(false);
     setMonster(null);
+    setLearnedAbility(null);
+    setAbilitySaved(false);
     monsterPromiseRef.current = null;
+    savedMonsterIdPromiseRef.current = null;
+    autoSaveStartedRef.current = false;
     setError(null);
     setStage("pick");
   }
@@ -132,11 +223,7 @@ export default function Home() {
       className="min-h-dvh flex flex-col items-center px-4 pb-8"
       style={{ paddingTop: "calc(var(--safe-top) + 1.5rem)" }}
     >
-      <header className="w-full max-w-md flex flex-col items-center gap-1 mb-6">
-        <div className="text-3xl">🥚</div>
-        <h1 className="text-xl font-extrabold tracking-tight">Mega Game</h1>
-        <p className="text-xs text-[var(--text-dim)]">Essence Forge</p>
-      </header>
+      <AppHeader active="home" />
 
       <div className="w-full max-w-md flex-1 flex flex-col items-center justify-center">
         {loading && (
@@ -167,7 +254,13 @@ export default function Home() {
           <EggReveal egg={egg} onHatch={handleHatch} loading={loading} imageFailed={eggImageFailed} />
         )}
         {!loading && !error && stage === "monster" && monster && (
-          <MonsterStage monster={monster} onRestart={handleRestart} />
+          <MonsterStage monster={monster} onLearnAbility={() => setStage("ability")} onSkip={handleRestart} />
+        )}
+        {!loading && !error && stage === "ability" && monster && (
+          <AbilityChoice monster={monster} onChoose={handleChooseAbility} />
+        )}
+        {!loading && !error && stage === "learned" && monster && learnedAbility && (
+          <AbilityLearned monster={monster} ability={learnedAbility} onRestart={handleRestart} saved={abilitySaved} />
         )}
       </div>
     </main>
