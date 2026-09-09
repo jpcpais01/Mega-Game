@@ -6,7 +6,7 @@ import { Essence } from "./essences";
 // image provider actually accepts. Keeping it out of the LLM-authored
 // imagePrompt means we can switch strategy without a second text-LLM call.
 const ART_STYLE = [
-  "Beautiful, clean 16-bit-style pixel art (crisp hard pixel edges, no anti-aliasing blur, no smooth gradients, tasteful limited color shading) — think polished SNES-era game art, clean and readable, not muddy or noisy.",
+  "Beautiful, clean 8-bit-style pixel art (crisp hard pixel edges, visibly chunky low-resolution pixels, no anti-aliasing blur, no smooth gradients, a small limited color palette per subject) — think classic NES-era game art, clean and readable, not muddy or noisy.",
   "Camera: 2.5D isometric game-camera perspective viewed from the front-left, roughly a 30-degree isometric angle (NOT a flat front view, NOT top-down).",
   "The subject is perfectly centered and fully visible within the frame, floating with no ground tile, no platform, no shadow, no scenery, no text, no watermark, no border, no frame.",
   "Single subject only, game-ready asset composition. Do not mention or describe any background — background treatment is handled separately.",
