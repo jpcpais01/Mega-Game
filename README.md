@@ -6,6 +6,11 @@ monster idle on screen as looping pixel-art sprite animations.
 
 ## How the loop works
 
+0. **The Nest** (`components/Nest.tsx`, the home screen) — 5 slots. An empty slot starts a new forge; a filled
+   slot opens `components/SlotDetail.tsx` to review that monster (and release the slot). `app/page.tsx`'s stage
+   machine (`"nest" | "view" | "pick" | "egg" | "monster" | "ability" | "learned"`) tracks which slot is active
+   and, once a monster (optionally with a learned ability) is finished, commits it into that slot and returns
+   to the nest — it's per-session UI state, separate from the persisted collection below.
 1. **Pick essences** — choose 1–5 essences (of 20, repeats allowed) in `components/EssencePicker.tsx`.
 2. **`POST /api/egg-details`** (`app/api/egg-details/route.ts`) — calls the **Egg Creator** LLM
    (`openai/gpt-5.6-luna` via OpenRouter chat completions, JSON mode) with the chosen essences. Returns an egg
@@ -24,14 +29,18 @@ monster idle on screen as looping pixel-art sprite animations.
    name/lore/stats/essences to get a monster name, lore, and an image prompt (explicitly excluding any
    egg/shell — full-body monster only), then renders it the same sprite-sheet way as the egg.
 5. **Sprite sheets** — every generated image (egg and monster alike) is requested as a single 1024×1024 image
-   containing a 4×4 grid of 16 pixel-art animation frames (isometric front-left view) depicting a simple
-   looping idle animation appropriate to the subject, requested directly from the image model in one shot — no
-   separate "figure out the animation" step needed (`lib/sprite.ts` has the grid constants and the shared
-   instruction text; `lib/openrouter.ts`'s `generateImage({ spriteSheet: true })` appends it).
-   `components/SpriteAnimator.tsx` is the canvas player: it slices the sheet into its 16 256×256 cells and steps
-   through them at a fixed frame rate with `imageSmoothingEnabled = false` for crisp pixel edges — a classic
-   sprite-sheet player, no external library. Used for both the egg (`EggReveal.tsx`) and the monster
-   (`MonsterStage.tsx`).
+   containing a 3×3 grid of 9 pixel-art animation frames (isometric front-left view) depicting a simple looping
+   idle animation appropriate to the subject, requested directly from the image model in one shot — no separate
+   "figure out the animation" step needed. The prompt spells out the frame grid as a numbered reading-order
+   diagram and explicitly demands identical scale/position per frame (`lib/sprite.ts`'s `buildSpriteSheetSuffix`;
+   `lib/openrouter.ts`'s `generateImage({ spriteSheet: true })` appends it) — image models drift between panels
+   more than you'd expect, so being this explicit measurably helps frame-to-frame alignment. Art direction asks
+   for clean 16-bit-style pixel art (`ART_STYLE` in `lib/prompts.ts`).
+   `components/SpriteAnimator.tsx` is the canvas player: it slices the sheet into its 9 cells (exact division of
+   `naturalWidth`/`naturalHeight` by the grid constants — verified bug-free; any remaining jitter is the image
+   model, not the slicer) and steps through them at a fixed frame rate with `imageSmoothingEnabled = false` for
+   crisp pixel edges — a classic sprite-sheet player, no external library. Used for both the egg (`EggReveal.tsx`)
+   and the monster (`MonsterStage.tsx`).
 6. **First ability** — the Monster Designer LLM also invents 4 candidate abilities alongside the monster
    (`lib/prompts.ts`, validated/backfilled in `app/api/hatch/route.ts`). `components/AbilityChoice.tsx` shows
    them as cards; picking one calls **`POST /api/ability`**, which does an **image-to-image** request —

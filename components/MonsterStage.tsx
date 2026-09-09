@@ -34,7 +34,7 @@ export default function MonsterStage({
         Learn First Ability
       </button>
       <button onClick={onSkip} className="text-xs text-[var(--text-dim)] underline underline-offset-2 -mt-3">
-        Skip — forge another egg
+        Skip — keep as-is
       </button>
     </div>
   );

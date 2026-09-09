@@ -8,9 +8,13 @@ import { useAuth } from "@/components/AuthProvider";
 import EssencePicker from "@/components/EssencePicker";
 import EggReveal from "@/components/EggReveal";
 import MonsterStage from "@/components/MonsterStage";
-import { Ability, EggData, EggDetails, LearnedAbility, MonsterData } from "@/lib/types";
+import Nest from "@/components/Nest";
+import SlotDetail from "@/components/SlotDetail";
+import { Ability, EggData, EggDetails, LearnedAbility, MonsterData, SlotEntry } from "@/lib/types";
 
-type Stage = "pick" | "egg" | "monster" | "ability" | "learned";
+type Stage = "nest" | "view" | "pick" | "egg" | "monster" | "ability" | "learned";
+
+const NEST_SIZE = 5;
 
 const EGG_DETAILS_STATUS_MESSAGES = ["Blending essences…", "Consulting the Egg Creator…"];
 const HATCH_STATUS_MESSAGES = ["Designing the monster…", "Rendering monster sprite sheet…"];
@@ -33,7 +37,10 @@ async function postJson<T>(url: string, body: unknown, idToken?: string | null):
 export default function Home() {
   const { user, getIdToken } = useAuth();
 
-  const [stage, setStage] = useState<Stage>("pick");
+  const [stage, setStage] = useState<Stage>("nest");
+  const [slots, setSlots] = useState<(SlotEntry | null)[]>(() => Array(NEST_SIZE).fill(null));
+  const [activeSlot, setActiveSlot] = useState<number | null>(null);
+
   const [egg, setEgg] = useState<EggData | null>(null);
   const [eggImageFailed, setEggImageFailed] = useState(false);
   const [monster, setMonster] = useState<MonsterData | null>(null);
@@ -122,6 +129,53 @@ export default function Home() {
       });
   }
 
+  function resetWorkingState() {
+    setEgg(null);
+    setEggImageFailed(false);
+    setMonster(null);
+    setLearnedAbility(null);
+    setAbilitySaved(false);
+    monsterPromiseRef.current = null;
+    savedMonsterIdPromiseRef.current = null;
+    autoSaveStartedRef.current = false;
+    setError(null);
+  }
+
+  function handleSelectEmptySlot(index: number) {
+    setActiveSlot(index);
+    resetWorkingState();
+    setStage("pick");
+  }
+
+  function handleViewSlot(index: number) {
+    setActiveSlot(index);
+    setStage("view");
+  }
+
+  function handleCloseSlotView() {
+    setActiveSlot(null);
+    setStage("nest");
+  }
+
+  function handleReleaseSlot() {
+    if (activeSlot === null) return;
+    setSlots((prev) => prev.map((s, i) => (i === activeSlot ? null : s)));
+    setActiveSlot(null);
+    setStage("nest");
+  }
+
+  // Commits the current in-progress monster (with or without a learned
+  // ability) into the active nest slot and returns to the nest overview.
+  function commitActiveSlotAndReturnToNest() {
+    if (activeSlot !== null && monster) {
+      const index = activeSlot;
+      setSlots((prev) => prev.map((s, i) => (i === index ? { monster, learnedAbility } : s)));
+    }
+    setActiveSlot(null);
+    resetWorkingState();
+    setStage("nest");
+  }
+
   async function handleForge(essenceIds: string[]) {
     setError(null);
     setEggImageFailed(false);
@@ -205,18 +259,7 @@ export default function Home() {
     }
   }
 
-  function handleRestart() {
-    setEgg(null);
-    setEggImageFailed(false);
-    setMonster(null);
-    setLearnedAbility(null);
-    setAbilitySaved(false);
-    monsterPromiseRef.current = null;
-    savedMonsterIdPromiseRef.current = null;
-    autoSaveStartedRef.current = false;
-    setError(null);
-    setStage("pick");
-  }
+  const activeEntry = activeSlot !== null ? slots[activeSlot] : null;
 
   return (
     <main
@@ -247,6 +290,12 @@ export default function Home() {
           </div>
         )}
 
+        {!loading && !error && stage === "nest" && (
+          <Nest slots={slots} onSelectEmpty={handleSelectEmptySlot} onViewFilled={handleViewSlot} />
+        )}
+        {!loading && !error && stage === "view" && activeEntry && (
+          <SlotDetail entry={activeEntry} onClose={handleCloseSlotView} onRelease={handleReleaseSlot} />
+        )}
         {!loading && !error && stage === "pick" && (
           <EssencePicker onForge={handleForge} loading={loading} />
         )}
@@ -254,13 +303,22 @@ export default function Home() {
           <EggReveal egg={egg} onHatch={handleHatch} loading={loading} imageFailed={eggImageFailed} />
         )}
         {!loading && !error && stage === "monster" && monster && (
-          <MonsterStage monster={monster} onLearnAbility={() => setStage("ability")} onSkip={handleRestart} />
+          <MonsterStage
+            monster={monster}
+            onLearnAbility={() => setStage("ability")}
+            onSkip={commitActiveSlotAndReturnToNest}
+          />
         )}
         {!loading && !error && stage === "ability" && monster && (
           <AbilityChoice monster={monster} onChoose={handleChooseAbility} />
         )}
         {!loading && !error && stage === "learned" && monster && learnedAbility && (
-          <AbilityLearned monster={monster} ability={learnedAbility} onRestart={handleRestart} saved={abilitySaved} />
+          <AbilityLearned
+            monster={monster}
+            ability={learnedAbility}
+            onDone={commitActiveSlotAndReturnToNest}
+            saved={abilitySaved}
+          />
         )}
       </div>
     </main>

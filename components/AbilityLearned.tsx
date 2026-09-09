@@ -6,12 +6,12 @@ import SpriteAnimator from "./SpriteAnimator";
 export default function AbilityLearned({
   monster,
   ability,
-  onRestart,
+  onDone,
   saved,
 }: {
   monster: MonsterData;
   ability: LearnedAbility;
-  onRestart: () => void;
+  onDone: () => void;
   saved: boolean;
 }) {
   return (
@@ -35,9 +35,9 @@ export default function AbilityLearned({
 
       <button
         className="glow-btn w-full rounded-2xl py-4 text-base font-bold tracking-wide text-white"
-        onClick={onRestart}
+        onClick={onDone}
       >
-        Forge Another Egg
+        Back to Nest
       </button>
     </div>
   );

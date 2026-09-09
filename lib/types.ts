@@ -32,6 +32,13 @@ export type MonsterData = {
   abilities: Ability[]; // exactly 4 options to choose a first ability from
 };
 
+// A finished monster sitting in one of the home screen's nest slots (in-session,
+// not necessarily the same thing as a Firestore-persisted SavedMonster).
+export type SlotEntry = {
+  monster: MonsterData;
+  learnedAbility: LearnedAbility | null;
+};
+
 // A monster persisted to a signed-in user's collection (Firestore doc + Storage URLs).
 export type SavedMonster = {
   id: string;
