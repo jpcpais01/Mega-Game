@@ -1,6 +1,7 @@
-// Animated egg/monster/ability art is a real animated WebP (see
-// lib/animated-image.ts) — a plain <img> plays and loops it natively
-// forever, no sprite sheet, no canvas slicing, no custom animation loop.
+// A still PNG (eggs, or a monster/ability before its video finishes) and an
+// animated WebP (see lib/animated-image.ts, monster/ability idle loops)
+// both render the exact same way — a plain <img>. The animated ones play
+// and loop natively forever, no canvas, no slicing, no custom JS loop.
 export default function SpriteAnimator({
   imageDataUrl,
   size = 280,

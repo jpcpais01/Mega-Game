@@ -4,9 +4,9 @@ import { generateImage } from "@/lib/openrouter";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-// Generates only the egg's still reference image (no animation yet) — the
-// client then submits that still to the video-generation pipeline
-// (/api/sprite-video/submit + /status) to get the actual animated idle loop.
+// Generates the egg's final art — a single still (already chroma-keyed to
+// transparent by generateImage()). Eggs are never animated: only the
+// monster, once hatched, goes through the video-generation pipeline.
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));

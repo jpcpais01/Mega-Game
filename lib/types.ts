@@ -12,8 +12,7 @@ export type EggDetails = {
 };
 
 export type EggData = EggDetails & {
-  imageDataUrl: string | null; // null while generating; the still PNG, then the animated WebP once its video finishes
-  animated: boolean; // false while imageDataUrl is the still; true once the real looping animation replaced it
+  imageDataUrl: string; // the still PNG (chroma-keyed to transparent) — eggs are never animated
 };
 
 export type Ability = {
@@ -30,7 +29,7 @@ export type MonsterData = {
   lore: string;
   imagePrompt: string;
   imageDataUrl: string; // the still PNG at first, then the animated idle WebP once its video finishes
-  animated: boolean; // same meaning as EggData.animated — a player can commit the monster to a Nest slot before its video finishes
+  animated: boolean; // false while imageDataUrl is the still; true once the real looping animation replaced it — a player can commit the monster to a Nest slot before its video finishes
   // A clean single-pose reference image that never changes after hatch —
   // used as the video-generation reference for later ability animations,
   // since imageDataUrl becomes the animated idle loop once that finishes

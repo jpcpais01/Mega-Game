@@ -66,11 +66,7 @@ function SlotTile({ index, slot, onTap }: { index: number; slot: SlotState; onTa
         style={{ boxShadow: "0 0 16px -4px var(--accent)" }}
       >
         <PanelCorners />
-        {slot.egg.imageDataUrl ? (
-          <SpriteAnimator imageDataUrl={slot.egg.imageDataUrl} size={64} />
-        ) : (
-          <div className="w-3/5 h-3/5 rounded-full shimmer" />
-        )}
+        <SpriteAnimator imageDataUrl={slot.egg.imageDataUrl} size={64} />
       </button>
     );
   }

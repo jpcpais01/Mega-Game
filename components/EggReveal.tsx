@@ -11,27 +11,19 @@ export default function EggReveal({
   onHatch,
   onBack,
   loading,
-  imageFailed = false,
 }: {
   egg: EggData;
   onHatch: () => void;
   onBack: () => void;
   loading: boolean;
-  imageFailed?: boolean;
 }) {
   return (
     <div className="flex flex-col items-center gap-6 w-full pop-in">
       <div className="relative w-56 h-56 flex items-center justify-center">
         <div className="absolute inset-0 rounded-full blur-3xl opacity-40 bg-[var(--accent)]" />
-        {egg.imageDataUrl ? (
-          <div className="relative drop-shadow-[0_20px_40px_rgba(0,0,0,0.5)]">
-            <SpriteAnimator imageDataUrl={egg.imageDataUrl} size={224} />
-          </div>
-        ) : imageFailed ? (
-          <div className="relative text-7xl float opacity-70">🥚</div>
-        ) : (
-          <div className="relative w-4/5 h-4/5 rounded-full shimmer" />
-        )}
+        <div className="relative drop-shadow-[0_20px_40px_rgba(0,0,0,0.5)]">
+          <SpriteAnimator imageDataUrl={egg.imageDataUrl} size={224} />
+        </div>
       </div>
 
       <div className="text-center">

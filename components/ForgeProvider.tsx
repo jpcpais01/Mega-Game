@@ -170,51 +170,12 @@ export function ForgeProvider({ children }: { children: React.ReactNode }) {
     return controller.signal;
   }, []);
 
-  // Generates the egg's own idle animation in the background: still image
-  // first (shown right away), then submits + polls for the animated sheet.
-  // Runs independently of whatever screen is mounted — nothing here reads
-  // component state, everything lands back in the shared slots array.
-  const beginEggAnimation = useCallback(
-    async (index: number, details: EggDetails, signal: AbortSignal) => {
-      let stillImageDataUrl: string;
-      try {
-        const result = await postJson<{ imageDataUrl: string }>(
-          "/api/egg-image",
-          { imagePrompt: details.imagePrompt },
-          undefined,
-          signal
-        );
-        stillImageDataUrl = result.imageDataUrl;
-        setSlots((prev) =>
-          prev.map((s, i) => (i === index && s.status === "egg-ready" ? { ...s, egg: { ...s.egg, imageDataUrl: stillImageDataUrl } } : s))
-        );
-      } catch (err) {
-        if (!isAbortError(err)) console.error("egg-image error:", err);
-        return;
-      }
-
-      try {
-        const jobId = await submitSpriteVideo({ stillImageDataUrl, kind: "idle" }, signal);
-        const result = await pollSpriteVideo(jobId, {}, undefined, signal);
-        recordAnimationDebug(index, { videoUrl: result.debugVideoDataUrl, error: undefined });
-        setSlots((prev) =>
-          prev.map((s, i) =>
-            i === index && s.status === "egg-ready"
-              ? { ...s, egg: { ...s.egg, imageDataUrl: result.imageDataUrl, animated: true } }
-              : s
-          )
-        );
-      } catch (err) {
-        if (!isAbortError(err)) {
-          console.error("egg animation error:", err);
-          recordAnimationDebug(index, { error: err instanceof Error ? err.message : "Egg animation failed" });
-        }
-        // Keep whatever still image already landed — the animation upgrade just didn't happen.
-      }
-    },
-    [recordAnimationDebug]
-  );
-
+  // Eggs are never animated — just the details LLM call, then a single
+  // still-image generation (already chroma-keyed to a transparent PNG by
+  // generateImage()). Both are fast, so "forging" covers the whole thing:
+  // once the slot reaches "egg-ready" its art is already final, nothing
+  // more to wait for. Only hatching (which renders a monster and waits on
+  // its idle video) is a real, separate wait.
   const startForge = useCallback(
     (index: number, essenceIds: string[]) => {
       const signal = newSignal(index);
@@ -223,9 +184,14 @@ export function ForgeProvider({ children }: { children: React.ReactNode }) {
       (async () => {
         try {
           const details = await postJson<EggDetails>("/api/egg-details", { essenceIds }, undefined, signal);
-          const egg: EggData = { ...details, imageDataUrl: null, animated: false };
+          const { imageDataUrl } = await postJson<{ imageDataUrl: string }>(
+            "/api/egg-image",
+            { imagePrompt: details.imagePrompt },
+            undefined,
+            signal
+          );
+          const egg: EggData = { ...details, imageDataUrl };
           setSlot(index, { status: "egg-ready", egg, error: null });
-          beginEggAnimation(index, details, signal);
         } catch (err) {
           if (isAbortError(err)) return;
           console.error("forge error:", err);
@@ -237,7 +203,7 @@ export function ForgeProvider({ children }: { children: React.ReactNode }) {
         }
       })();
     },
-    [newSignal, setSlot, beginEggAnimation]
+    [newSignal, setSlot]
   );
 
   const retryForge = useCallback(
