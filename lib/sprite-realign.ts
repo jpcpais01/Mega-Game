@@ -1,6 +1,6 @@
 import "server-only";
 import sharp from "sharp";
-import { SPRITE_GRID_COLS, SPRITE_GRID_ROWS } from "./sprite";
+import { SPRITE_GRID_COLS, SPRITE_GRID_ROWS, SpriteGrid } from "./sprite";
 
 const DATA_URL_RE = /^data:([^;]+);base64,([\s\S]*)$/;
 
@@ -25,7 +25,11 @@ const MAX_SHIFT_FRACTION_OF_CELL = 0.2;
 // alignment there would cancel out the real motion along with the
 // unwanted jitter — a lower strength (e.g. 0.5) damps drift while letting
 // the intended movement mostly through.
-export async function realignSpriteFrames(dataUrl: string, strength: number = 1): Promise<string> {
+export async function realignSpriteFrames(
+  dataUrl: string,
+  strength: number = 1,
+  grid: SpriteGrid = { cols: SPRITE_GRID_COLS, rows: SPRITE_GRID_ROWS }
+): Promise<string> {
   const match = dataUrl.match(DATA_URL_RE);
   if (!match) {
     throw new Error("realignSpriteFrames: input is not a data URL");
@@ -37,14 +41,14 @@ export async function realignSpriteFrames(dataUrl: string, strength: number = 1)
     .raw()
     .toBuffer({ resolveWithObject: true });
   const { width, height, channels } = info;
-  const cellW = width / SPRITE_GRID_COLS;
-  const cellH = height / SPRITE_GRID_ROWS;
+  const cellW = width / grid.cols;
+  const cellH = height / grid.rows;
   const maxFullShift = Math.min(cellW, cellH) * MAX_SHIFT_FRACTION_OF_CELL;
 
   const out = Buffer.alloc(data.length); // zeroed = fully transparent everywhere by default
 
-  for (let row = 0; row < SPRITE_GRID_ROWS; row++) {
-    for (let col = 0; col < SPRITE_GRID_COLS; col++) {
+  for (let row = 0; row < grid.rows; row++) {
+    for (let col = 0; col < grid.cols; col++) {
       const x0 = Math.round(col * cellW);
       const y0 = Math.round(row * cellH);
       const x1 = Math.round((col + 1) * cellW);

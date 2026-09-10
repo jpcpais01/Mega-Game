@@ -51,9 +51,13 @@ stats and essences.
 
 Art direction you MUST bake into the "imagePrompt" field: ${ART_STYLE}
 Show the fully hatched creature's whole body, an original creature design (not a real-world animal), with a
-distinct silhouette and color palette drawn from its essences. Absolutely do NOT depict any egg, eggshell
-fragments, or hatching remnants in the image — only the finished monster, standing in a light idle pose suitable
-for a game character sprite.
+distinct silhouette and color palette drawn from its essences. Give it a slightly humanoid build — an upright
+torso, a head, and limbs it stands and gestures with, like classic monster-collecting game creatures — while
+keeping the overall silhouette wholly its own and clearly non-human: unusual limb counts or shapes, alien
+proportions, extra eyes, tails, wings, or crystalline/elemental body parts are all welcome and encouraged. It
+should read as a distinct fantasy creature, never as a person in a costume or an ordinary real-world animal.
+Absolutely do NOT depict any egg, eggshell fragments, or hatching remnants in the image — only the finished
+monster, standing in a light idle pose suitable for a game character sprite.
 
 You must also invent exactly 4 candidate first abilities the player can choose between to teach this monster —
 distinct, flavorful, and grounded in its essences (e.g. a fire-essence monster might get "Ember Claw" or "Heat

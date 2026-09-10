@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { EGG_GRID_TEMPLATE_INSTRUCTION, eggGridAlignmentTemplate } from "@/lib/grid-template";
 import { generateImage } from "@/lib/openrouter";
+import { EGG_SPRITE_GRID_COLS, EGG_SPRITE_GRID_ROWS } from "@/lib/sprite";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -19,6 +20,7 @@ export async function POST(req: NextRequest) {
       prompt: `${imagePrompt} ${EGG_GRID_TEMPLATE_INSTRUCTION}`,
       referenceImages: [template],
       spriteSheet: true,
+      spriteGrid: { cols: EGG_SPRITE_GRID_COLS, rows: EGG_SPRITE_GRID_ROWS },
     });
     return NextResponse.json({ imageDataUrl });
   } catch (err) {

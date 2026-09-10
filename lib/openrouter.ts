@@ -1,5 +1,5 @@
 import { CHROMA_KEY_HEX, chromaKeyToTransparentPng } from "./chroma-key";
-import { buildSpriteSheetSuffix } from "./sprite";
+import { buildSpriteSheetSuffix, SpriteGrid } from "./sprite";
 import { realignSpriteFrames } from "./sprite-realign";
 
 const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
@@ -126,6 +126,8 @@ export async function generateImage(params: {
   quality?: string;
   /** true = default idle-loop sprite sheet; a string = custom motion description (e.g. an ability action) */
   spriteSheet?: boolean | string;
+  /** Grid dimensions for the sprite sheet (defaults to the standard monster/ability 3x3 grid — pass the egg's 2x2 grid explicitly) */
+  spriteGrid?: SpriteGrid;
   /**
    * How hard to snap each frame's mass center onto its cell center (0-1,
    * default 1 = full correction). Idle loops have no intentional
@@ -140,7 +142,7 @@ export async function generateImage(params: {
   const aspectRatio = params.aspectRatio ?? "1:1";
   const quality = params.quality ?? "high";
   const basePrompt = params.spriteSheet
-    ? `${params.prompt} ${buildSpriteSheetSuffix(typeof params.spriteSheet === "string" ? params.spriteSheet : undefined)}`
+    ? `${params.prompt} ${buildSpriteSheetSuffix(typeof params.spriteSheet === "string" ? params.spriteSheet : undefined, params.spriteGrid)}`
     : params.prompt;
 
   // We tried background:"transparent" first here for a while, but this
@@ -163,5 +165,7 @@ export async function generateImage(params: {
   const rawBuffer = Buffer.from(chromaResult.b64, "base64");
   const transparentBuffer = await chromaKeyToTransparentPng(rawBuffer);
   const transparentDataUrl = `data:image/png;base64,${transparentBuffer.toString("base64")}`;
-  return params.spriteSheet ? realignSpriteFrames(transparentDataUrl, params.alignStrength ?? 1) : transparentDataUrl;
+  return params.spriteSheet
+    ? realignSpriteFrames(transparentDataUrl, params.alignStrength ?? 1, params.spriteGrid)
+    : transparentDataUrl;
 }

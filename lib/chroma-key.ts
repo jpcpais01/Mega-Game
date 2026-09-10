@@ -11,14 +11,15 @@ export const CHROMA_KEY_COLOR = { r: 255, g: 0, b: 255 };
 export const CHROMA_KEY_HEX = "#FF00FF";
 
 // Different image models don't all paint the background as precisely pure
-// magenta as the original tuning assumed — a slightly lighter/darker or
-// hue-shifted render used to fall outside the old 0-105 keying zone
-// entirely and stay fully opaque, leaving a visible pink/purple background.
-// Widened to 0-130: the closest real essence color to magenta is "sonic"
-// (hot pink) at a measured distance of ~145, so this still leaves a ~15-unit
-// safety margin before any legitimate subject color risks being keyed out.
-const THRESHOLD = 75; // color distance below this is fully transparent
-const FEATHER = 55; // distance band above THRESHOLD that ramps alpha back in, to soften edges
+// magenta as the original tuning assumed — a lighter/darker or hue-shifted
+// render can fall outside a too-narrow keying zone entirely and stay fully
+// opaque, leaving a visible pink/purple background. Widened to 0-155: the
+// closest real essence color to magenta is "sonic" (hot pink) at a measured
+// distance of ~145, so a "sonic" creature's edge pixels can dip into the
+// tail of the feather band (a very slight, spill-corrected softening) —
+// an acceptable trade against a background that doesn't fully clear.
+const THRESHOLD = 90; // color distance below this is fully transparent
+const FEATHER = 65; // distance band above THRESHOLD that ramps alpha back in, to soften edges
 
 function clamp255(v: number): number {
   return Math.max(0, Math.min(255, Math.round(v)));

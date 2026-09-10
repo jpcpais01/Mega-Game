@@ -2,7 +2,6 @@ import { Timestamp } from "firebase-admin/firestore";
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser, UnauthorizedError } from "@/lib/auth-server";
 import { adminDb } from "@/lib/firebase/admin";
-import { shrinkDataUrlForFirestore } from "@/lib/image-resize";
 import { Ability, EggStat, SavedMonster, SavedMonsterSummary } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -81,6 +80,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing or invalid monster fields" }, { status: 400 });
     }
 
+    // Imported dynamically (not at module scope) so a native-binary problem
+    // in this sharp-dependent path can only ever break POST, never GET —
+    // a module-scope import runs at load time for every method on this
+    // route, so it used to take the read-only Vault listing down with it.
+    const { shrinkDataUrlForFirestore } = await import("@/lib/image-resize");
     const docRef = monstersCollection(uid).doc();
     const [eggImageShrunk, monsterImageShrunk] = await Promise.all([
       shrinkDataUrlForFirestore(eggImageDataUrl),
