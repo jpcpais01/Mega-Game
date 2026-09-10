@@ -2,6 +2,7 @@
 
 import { SlotEntry } from "@/lib/types";
 import SpriteAnimator from "./SpriteAnimator";
+import { PanelCorners } from "./ui/GamePanel";
 
 export default function Nest({
   slots,
@@ -15,8 +16,8 @@ export default function Nest({
   return (
     <div className="flex flex-col items-center gap-6 w-full pop-in">
       <div className="text-center">
-        <h2 className="text-lg font-bold">Your Nest</h2>
-        <p className="text-xs text-[var(--text-dim)] mt-1">Tap an empty slot to forge a new egg</p>
+        <h1 className="font-display text-xl tracking-wide text-[var(--gold)]">YOUR NEST</h1>
+        <p className="text-xs text-[var(--text-dim)] mt-1">Tap an empty pedestal to forge a new egg</p>
       </div>
 
       <div className="grid grid-cols-5 gap-2 w-full">
@@ -25,18 +26,20 @@ export default function Nest({
             <button
               key={i}
               onClick={() => onViewFilled(i)}
-              className="aspect-square rounded-2xl glass-panel flex items-center justify-center overflow-hidden active:scale-95 transition-transform"
+              className="game-panel rounded-2xl aspect-square flex items-center justify-center overflow-hidden active:scale-95 transition-transform"
               style={{ boxShadow: "0 0 16px -4px var(--accent)" }}
             >
+              <PanelCorners />
               <SpriteAnimator imageDataUrl={entry.monster.imageDataUrl} size={64} />
             </button>
           ) : (
             <button
               key={i}
               onClick={() => onSelectEmpty(i)}
-              className="aspect-square rounded-2xl border-2 border-dashed border-[var(--panel-border)] flex items-center justify-center text-2xl text-[var(--text-dim)] active:scale-95 transition-transform"
+              className="relative aspect-square rounded-2xl border-2 border-dashed flex items-center justify-center active:scale-95 transition-transform"
+              style={{ borderColor: "rgba(217, 180, 95, 0.35)", background: "rgba(217, 180, 95, 0.04)" }}
             >
-              +
+              <span className="text-xl text-[var(--gold)] opacity-70">+</span>
             </button>
           )
         )}

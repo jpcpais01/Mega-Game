@@ -3,6 +3,8 @@
 import { EggData } from "@/lib/types";
 import SpriteAnimator from "./SpriteAnimator";
 import StatBar from "./StatBar";
+import GameButton from "./ui/GameButton";
+import GamePanel from "./ui/GamePanel";
 
 export default function EggReveal({
   egg,
@@ -31,23 +33,19 @@ export default function EggReveal({
       </div>
 
       <div className="text-center">
-        <h2 className="text-2xl font-bold">{egg.eggName}</h2>
+        <h2 className="font-display text-xl text-[var(--gold)]">{egg.eggName}</h2>
         <p className="text-sm text-[var(--text-dim)] mt-1 max-w-xs mx-auto">{egg.lore}</p>
       </div>
 
-      <div className="glass-panel rounded-2xl p-4 w-full flex flex-col gap-3">
+      <GamePanel className="rounded-2xl p-4 w-full flex flex-col gap-3">
         {egg.stats.map((s, i) => (
           <StatBar key={s.name} name={s.name} value={s.value} delayMs={i * 90} />
         ))}
-      </div>
+      </GamePanel>
 
-      <button
-        className="glow-btn w-full rounded-2xl py-4 text-base font-bold tracking-wide text-white"
-        onClick={onHatch}
-        disabled={loading}
-      >
+      <GameButton onClick={onHatch} disabled={loading}>
         {loading ? "Hatching…" : "Hatch Egg"}
-      </button>
+      </GameButton>
     </div>
   );
 }

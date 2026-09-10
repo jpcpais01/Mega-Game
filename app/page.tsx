@@ -3,14 +3,16 @@
 import { useEffect, useRef, useState } from "react";
 import AbilityChoice from "@/components/AbilityChoice";
 import AbilityLearned from "@/components/AbilityLearned";
-import AppHeader from "@/components/AppHeader";
 import { useAuth } from "@/components/AuthProvider";
 import EssencePicker from "@/components/EssencePicker";
 import EggReveal from "@/components/EggReveal";
 import MonsterStage from "@/components/MonsterStage";
 import Nest from "@/components/Nest";
 import SlotDetail from "@/components/SlotDetail";
+import GameButton from "@/components/ui/GameButton";
+import GamePanel from "@/components/ui/GamePanel";
 import { Ability, EggData, EggDetails, LearnedAbility, MonsterData, SlotEntry } from "@/lib/types";
+import { useUnlockedEssences } from "@/lib/unlocked-essences";
 
 type Stage = "nest" | "view" | "pick" | "egg" | "monster" | "ability" | "learned";
 
@@ -36,6 +38,7 @@ async function postJson<T>(url: string, body: unknown, idToken?: string | null):
 
 export default function Home() {
   const { user, getIdToken } = useAuth();
+  const { unlockedIds } = useUnlockedEssences();
 
   const [stage, setStage] = useState<Stage>("nest");
   const [slots, setSlots] = useState<(SlotEntry | null)[]>(() => Array(NEST_SIZE).fill(null));
@@ -262,65 +265,55 @@ export default function Home() {
   const activeEntry = activeSlot !== null ? slots[activeSlot] : null;
 
   return (
-    <main
-      className="min-h-dvh flex flex-col items-center px-4 pb-8"
-      style={{ paddingTop: "calc(var(--safe-top) + 1.5rem)" }}
-    >
-      <AppHeader active="home" />
+    <div className="w-full flex-1 flex flex-col items-center justify-center py-4">
+      {loading && (
+        <div className="flex flex-col items-center gap-4 py-10">
+          <div className="w-16 h-16 rounded-full border-4 border-[var(--accent)]/30 border-t-[var(--accent)] spin-slow" />
+          <p className="text-sm text-[var(--text-dim)] text-center min-h-[1.5em]">
+            {statusMessages[statusIndex]}
+          </p>
+        </div>
+      )}
 
-      <div className="w-full max-w-md flex-1 flex flex-col items-center justify-center">
-        {loading && (
-          <div className="flex flex-col items-center gap-4 py-10">
-            <div className="w-16 h-16 rounded-full border-4 border-[var(--accent)]/30 border-t-[var(--accent)] spin-slow" />
-            <p className="text-sm text-[var(--text-dim)] text-center min-h-[1.5em]">
-              {statusMessages[statusIndex]}
-            </p>
-          </div>
-        )}
+      {!loading && error && (
+        <GamePanel className="rounded-2xl p-4 w-full text-center flex flex-col gap-3">
+          <p className="text-sm text-[var(--danger)]">{error}</p>
+          <GameButton size="md" onClick={() => setError(null)}>
+            Try again
+          </GameButton>
+        </GamePanel>
+      )}
 
-        {!loading && error && (
-          <div className="glass-panel rounded-2xl p-4 w-full text-center flex flex-col gap-3">
-            <p className="text-sm text-[var(--danger)]">{error}</p>
-            <button
-              className="glow-btn rounded-xl py-3 text-sm font-bold"
-              onClick={() => setError(null)}
-            >
-              Try again
-            </button>
-          </div>
-        )}
-
-        {!loading && !error && stage === "nest" && (
-          <Nest slots={slots} onSelectEmpty={handleSelectEmptySlot} onViewFilled={handleViewSlot} />
-        )}
-        {!loading && !error && stage === "view" && activeEntry && (
-          <SlotDetail entry={activeEntry} onClose={handleCloseSlotView} onRelease={handleReleaseSlot} />
-        )}
-        {!loading && !error && stage === "pick" && (
-          <EssencePicker onForge={handleForge} loading={loading} />
-        )}
-        {!loading && !error && stage === "egg" && egg && (
-          <EggReveal egg={egg} onHatch={handleHatch} loading={loading} imageFailed={eggImageFailed} />
-        )}
-        {!loading && !error && stage === "monster" && monster && (
-          <MonsterStage
-            monster={monster}
-            onLearnAbility={() => setStage("ability")}
-            onSkip={commitActiveSlotAndReturnToNest}
-          />
-        )}
-        {!loading && !error && stage === "ability" && monster && (
-          <AbilityChoice monster={monster} onChoose={handleChooseAbility} />
-        )}
-        {!loading && !error && stage === "learned" && monster && learnedAbility && (
-          <AbilityLearned
-            monster={monster}
-            ability={learnedAbility}
-            onDone={commitActiveSlotAndReturnToNest}
-            saved={abilitySaved}
-          />
-        )}
-      </div>
-    </main>
+      {!loading && !error && stage === "nest" && (
+        <Nest slots={slots} onSelectEmpty={handleSelectEmptySlot} onViewFilled={handleViewSlot} />
+      )}
+      {!loading && !error && stage === "view" && activeEntry && (
+        <SlotDetail entry={activeEntry} onClose={handleCloseSlotView} onRelease={handleReleaseSlot} />
+      )}
+      {!loading && !error && stage === "pick" && (
+        <EssencePicker onForge={handleForge} loading={loading} unlockedEssenceIds={unlockedIds} />
+      )}
+      {!loading && !error && stage === "egg" && egg && (
+        <EggReveal egg={egg} onHatch={handleHatch} loading={loading} imageFailed={eggImageFailed} />
+      )}
+      {!loading && !error && stage === "monster" && monster && (
+        <MonsterStage
+          monster={monster}
+          onLearnAbility={() => setStage("ability")}
+          onSkip={commitActiveSlotAndReturnToNest}
+        />
+      )}
+      {!loading && !error && stage === "ability" && monster && (
+        <AbilityChoice monster={monster} onChoose={handleChooseAbility} />
+      )}
+      {!loading && !error && stage === "learned" && monster && learnedAbility && (
+        <AbilityLearned
+          monster={monster}
+          ability={learnedAbility}
+          onDone={commitActiveSlotAndReturnToNest}
+          saved={abilitySaved}
+        />
+      )}
+    </div>
   );
 }

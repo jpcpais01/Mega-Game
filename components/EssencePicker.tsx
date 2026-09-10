@@ -1,16 +1,24 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ESSENCES, MAX_ESSENCES_PER_EGG } from "@/lib/essences";
+import { ESSENCES, EVENT_ESSENCES, MAX_ESSENCES_PER_EGG, getEssence } from "@/lib/essences";
+import GameButton from "./ui/GameButton";
 
 export default function EssencePicker({
   onForge,
   loading,
+  unlockedEssenceIds = [],
 }: {
   onForge: (essenceIds: string[]) => void;
   loading: boolean;
+  unlockedEssenceIds?: string[];
 }) {
   const [selected, setSelected] = useState<string[]>([]);
+
+  const allEssences = useMemo(
+    () => [...ESSENCES, ...EVENT_ESSENCES.filter((e) => unlockedEssenceIds.includes(e.id))],
+    [unlockedEssenceIds]
+  );
 
   const counts = useMemo(() => {
     const map = new Map<string, number>();
@@ -54,7 +62,7 @@ export default function EssencePicker({
       <div className="flex justify-center gap-2">
         {Array.from({ length: MAX_ESSENCES_PER_EGG }).map((_, i) => {
           const id = selected[i];
-          const essence = id ? ESSENCES.find((e) => e.id === id) : undefined;
+          const essence = id ? getEssence(id) : undefined;
           return (
             <button
               key={i}
@@ -75,18 +83,25 @@ export default function EssencePicker({
       </div>
 
       <div className="grid grid-cols-4 gap-2.5">
-        {ESSENCES.map((essence) => {
+        {allEssences.map((essence) => {
           const count = counts.get(essence.id) ?? 0;
+          const isRare = EVENT_ESSENCES.some((e) => e.id === essence.id);
           return (
             <button
               key={essence.id}
               onClick={() => addEssence(essence.id)}
               disabled={loading || isFull}
-              className="relative aspect-square rounded-xl flex flex-col items-center justify-center gap-0.5 glass-panel active:scale-95 transition-transform disabled:opacity-30"
+              className="relative aspect-square rounded-xl flex flex-col items-center justify-center gap-0.5 tile-panel active:scale-95 transition-transform disabled:opacity-30"
               style={{
-                boxShadow: count > 0 ? `0 0 0 2px ${essence.color}, 0 0 16px -2px ${essence.glow}` : undefined,
+                boxShadow:
+                  count > 0
+                    ? `0 0 0 2px ${essence.color}, 0 0 16px -2px ${essence.glow}`
+                    : isRare
+                      ? `0 0 0 1px var(--gold), 0 0 12px -3px var(--gold)`
+                      : undefined,
               }}
             >
+              {isRare && <span className="absolute -top-1.5 -left-1.5 text-[10px] text-[var(--gold)]">★</span>}
               <span className="text-xl leading-none">{essence.emoji}</span>
               <span className="text-[10px] font-medium text-[var(--text-dim)] leading-none">{essence.name}</span>
               {count > 0 && (
@@ -102,13 +117,9 @@ export default function EssencePicker({
         })}
       </div>
 
-      <button
-        className="glow-btn w-full rounded-2xl py-4 text-base font-bold tracking-wide text-white mt-1"
-        disabled={selected.length === 0 || loading}
-        onClick={() => onForge(selected)}
-      >
+      <GameButton className="mt-1" disabled={selected.length === 0 || loading} onClick={() => onForge(selected)}>
         {loading ? "Forging egg…" : `Forge Egg (${selected.length}/${MAX_ESSENCES_PER_EGG})`}
-      </button>
+      </GameButton>
     </div>
   );
 }

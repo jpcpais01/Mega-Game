@@ -30,8 +30,13 @@ export const ESSENCES: Essence[] = [
   { id: "magma", name: "Magma", emoji: "🌋", color: "#ff6a1f", glow: "#ffb066", flavor: "molten pressure from the deep earth" },
 ];
 
+export const EVENT_ESSENCES: Essence[] = [
+  { id: "aether", name: "Aether", emoji: "✨", color: "#ffd9ec", glow: "#ffffff", flavor: "the substance between all worlds" },
+  { id: "void", name: "Void", emoji: "⚫", color: "#1a1a24", glow: "#4a3a6b", flavor: "the silence beyond creation" },
+];
+
 export const MAX_ESSENCES_PER_EGG = 5;
 
 export function getEssence(id: string): Essence | undefined {
-  return ESSENCES.find((e) => e.id === id);
+  return ESSENCES.find((e) => e.id === id) ?? EVENT_ESSENCES.find((e) => e.id === id);
 }

@@ -2,6 +2,7 @@
 
 import { Ability, MonsterData } from "@/lib/types";
 import SpriteAnimator from "./SpriteAnimator";
+import { PanelCorners } from "./ui/GamePanel";
 
 export default function AbilityChoice({
   monster,
@@ -15,7 +16,7 @@ export default function AbilityChoice({
       <SpriteAnimator imageDataUrl={monster.imageDataUrl} size={140} />
 
       <div className="text-center">
-        <h2 className="text-lg font-bold">Choose {monster.monsterName}&apos;s first ability</h2>
+        <h2 className="font-display text-lg text-[var(--gold)]">Choose {monster.monsterName}&apos;s first ability</h2>
         <p className="text-xs text-[var(--text-dim)] mt-1">This will generate a brand-new animation</p>
       </div>
 
@@ -24,8 +25,9 @@ export default function AbilityChoice({
           <button
             key={ability.name}
             onClick={() => onChoose(ability)}
-            className="glass-panel rounded-2xl p-4 text-left active:scale-95 transition-transform"
+            className="game-panel rounded-2xl p-4 text-left active:scale-95 transition-transform"
           >
+            <PanelCorners />
             <p className="font-bold text-sm">{ability.name}</p>
             <p className="text-xs text-[var(--text-dim)] mt-1">{ability.description}</p>
           </button>

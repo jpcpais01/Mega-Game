@@ -1,13 +1,22 @@
 import type { Metadata, Viewport } from "next";
-import { Outfit } from "next/font/google";
+import { Cinzel, Outfit } from "next/font/google";
 import { AuthProvider } from "@/components/AuthProvider";
+import GameShell from "@/components/GameShell";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
+import PageTransition from "@/components/ui/PageTransition";
+import WorldBackdrop from "@/components/ui/WorldBackdrop";
 import "./globals.css";
 
 const outfit = Outfit({
   variable: "--font-outfit",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800"],
+});
+
+const cinzel = Cinzel({
+  variable: "--font-cinzel",
+  subsets: ["latin"],
+  weight: ["500", "600", "700", "800", "900"],
 });
 
 export const metadata: Metadata = {
@@ -39,9 +48,14 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${outfit.variable} h-full antialiased`}>
+    <html lang="en" className={`${outfit.variable} ${cinzel.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
-        <AuthProvider>{children}</AuthProvider>
+        <WorldBackdrop />
+        <AuthProvider>
+          <GameShell>
+            <PageTransition>{children}</PageTransition>
+          </GameShell>
+        </AuthProvider>
         <ServiceWorkerRegister />
       </body>
     </html>

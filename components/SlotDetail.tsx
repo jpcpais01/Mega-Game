@@ -2,6 +2,8 @@
 
 import { SlotEntry } from "@/lib/types";
 import SpriteAnimator from "./SpriteAnimator";
+import GameButton from "./ui/GameButton";
+import GamePanel from "./ui/GamePanel";
 
 export default function SlotDetail({
   entry,
@@ -24,35 +26,29 @@ export default function SlotDetail({
       </div>
 
       <div className="text-center">
-        <h2 className="text-2xl font-bold">{monster.monsterName}</h2>
+        <h2 className="font-display text-xl text-[var(--gold)]">{monster.monsterName}</h2>
         <p className="text-sm text-[var(--text-dim)] mt-1 max-w-xs mx-auto">{monster.lore}</p>
       </div>
 
       {learnedAbility ? (
-        <div className="glass-panel rounded-2xl p-4 w-full flex flex-col items-center gap-3">
+        <GamePanel className="rounded-2xl p-4 w-full flex flex-col items-center gap-3">
           <SpriteAnimator imageDataUrl={learnedAbility.imageDataUrl} size={120} />
           <div className="text-center">
             <p className="font-bold text-sm">{learnedAbility.name}</p>
             <p className="text-xs text-[var(--text-dim)] mt-1">{learnedAbility.description}</p>
           </div>
-        </div>
+        </GamePanel>
       ) : (
         <p className="text-xs text-[var(--text-dim)]">No ability learned yet</p>
       )}
 
       <div className="flex gap-3 w-full">
-        <button
-          onClick={onClose}
-          className="flex-1 rounded-2xl py-4 text-sm font-bold glass-panel text-[var(--text-dim)]"
-        >
+        <GameButton variant="ghost" size="lg" className="flex-1" onClick={onClose}>
           Back to Nest
-        </button>
-        <button
-          onClick={onRelease}
-          className="flex-1 rounded-2xl py-4 text-sm font-bold glass-panel text-[var(--danger)]"
-        >
+        </GameButton>
+        <GameButton variant="danger" size="lg" className="flex-1" onClick={onRelease}>
           Release
-        </button>
+        </GameButton>
       </div>
     </div>
   );
