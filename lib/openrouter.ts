@@ -1,3 +1,4 @@
+import sharp from "sharp";
 import { CHROMA_KEY_HEX, chromaKeyToTransparentPng } from "./chroma-key";
 import { DEFAULT_IMAGE_MODEL, ImageModelId } from "./image-models";
 import { buildSpriteSheetSuffix } from "./sprite";
@@ -16,6 +17,20 @@ function resolutionForQuality(quality: string): "512" | "1K" | "2K" | "4K" {
 }
 
 const CHROMA_KEY_BG_SUFFIX = `Background: fill the ENTIRE background area with one single, perfectly flat, completely uniform, unbroken solid chroma-key color: ${CHROMA_KEY_HEX} (pure magenta/pink) — a solid opaque studio background paint, like a photography green-screen. This is NOT a representation of transparency, so do NOT draw a checkerboard pattern or any transparency icon, and do NOT use any gradient, texture, vignette, or scenery. Every background pixel must be that exact flat magenta color. The subject itself must never use this magenta/pink color anywhere.`;
+
+// Real background:"transparent" beats the magenta/chroma-key trick outright
+// (no fringe, no post-processing) when a provider actually honors it. The
+// original default model's OpenRouter routing hard-rejects it every time
+// (400: "Accepted: auto, opaque"), confirmed by testing — Gemini's Image API
+// doesn't list `background` as an accepted field at all, so it can never use
+// it either. The two newer GPT Image models' docs are ambiguous (their enum
+// only shows "auto"|"opaque", but the description still references a
+// transparent mode needing png/webp output), so we actually try it for
+// those and fall back to the proven chroma-key path if the provider refuses.
+const MODELS_THAT_MIGHT_SUPPORT_TRANSPARENT = new Set<ImageModelId>([
+  "openai/gpt-image-2",
+  "openai/gpt-image-2.5-sunburst",
+]);
 
 function getApiKey(): string {
   const key = process.env.OPENROUTER_API_KEY;
@@ -97,6 +112,7 @@ async function requestImage(params: {
   prompt: string;
   aspectRatio: string;
   quality: string;
+  background?: "opaque" | "transparent";
   referenceImages?: string[];
 }): Promise<ImagesApiResult> {
   const body: Record<string, unknown> = {
@@ -116,13 +132,7 @@ async function requestImage(params: {
     body.resolution = resolutionForQuality(params.quality);
   } else {
     body.quality = params.quality;
-    // We tried background:"transparent" first here for a while, but this
-    // account's OpenRouter routing for the OpenAI image models hard-rejects
-    // it every time (400: "Accepted: auto, opaque") — so on a cold
-    // serverless instance that was a full wasted image-generation round
-    // trip before falling back to the chroma-key path that actually works,
-    // roughly doubling latency. Go straight to chroma-key.
-    body.background = "opaque";
+    body.background = params.background ?? "opaque";
   }
 
   const res = await fetch(`${OPENROUTER_BASE}/images`, {
@@ -142,6 +152,23 @@ async function requestImage(params: {
     return { ok: false, status: res.status, body: "response missing b64_json" };
   }
   return { ok: true, b64 };
+}
+
+// A provider can accept background:"transparent" (200 OK) without actually
+// honoring it — some silently render a normal opaque image instead. Check
+// the four corners, which should always land on background: if none of them
+// are actually transparent, treat the whole attempt as failed rather than
+// shipping a monster with a baked-in solid background.
+async function looksTransparent(pngBytes: Buffer): Promise<boolean> {
+  const { data, info } = await sharp(pngBytes).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const { width, height, channels } = info;
+  const corners = [
+    0,
+    (width - 1) * channels,
+    (height - 1) * width * channels,
+    ((height - 1) * width + (width - 1)) * channels,
+  ];
+  return corners.every((offset) => data[offset + 3] < 250);
 }
 
 export async function generateImage(params: {
@@ -168,6 +195,30 @@ export async function generateImage(params: {
   const basePrompt = params.spriteSheet
     ? `${params.prompt} ${buildSpriteSheetSuffix(typeof params.spriteSheet === "string" ? params.spriteSheet : undefined)}`
     : params.prompt;
+
+  if (MODELS_THAT_MIGHT_SUPPORT_TRANSPARENT.has(model)) {
+    // No magenta/checkerboard instruction here — asking for it in the prompt
+    // text on top of the API's own transparent mode just confuses the
+    // model, so leave the prompt as-is and let the parameter do the work.
+    const transparentResult = await requestImage({
+      model,
+      prompt: basePrompt,
+      aspectRatio,
+      quality,
+      background: "transparent",
+      referenceImages: params.referenceImages,
+    });
+    if (transparentResult.ok) {
+      const rawBuffer = Buffer.from(transparentResult.b64, "base64");
+      const pngBuffer = await sharp(rawBuffer).ensureAlpha().png().toBuffer();
+      if (await looksTransparent(pngBuffer)) {
+        const dataUrl = `data:image/png;base64,${pngBuffer.toString("base64")}`;
+        return params.spriteSheet ? realignSpriteFrames(dataUrl, params.alignStrength ?? 1) : dataUrl;
+      }
+    }
+    // Provider rejected the param, or accepted it without actually honoring
+    // it — fall through to the proven magenta/chroma-key path below.
+  }
 
   const chromaResult = await requestImage({
     model,
