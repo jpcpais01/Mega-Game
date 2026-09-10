@@ -251,37 +251,31 @@ export default function Home() {
     setLoading(true);
     startStatusCycle(ABILITY_STATUS_MESSAGES);
     try {
-      const { imageDataUrl } = await postJson<{ imageDataUrl: string }>("/api/ability", {
-        monsterName: monster.monsterName,
-        monsterImageDataUrl: monster.imageDataUrl,
-        abilityName: ability.name,
-        abilityDescription: ability.description,
-      });
-      const learned: LearnedAbility = { ...ability, imageDataUrl };
+      const savedId = await savedMonsterIdPromiseRef.current?.catch(() => null);
+      const idToken = savedId ? await getIdToken() : null;
+      // savedMonsterId tells the route to persist the (server-shrunk) result
+      // in this same request, instead of us sending the full sprite sheet
+      // back to the server a second time — a high-detail sheet can be
+      // several MB, past the platform's request body limit.
+      const result = await postJson<{ imageDataUrl: string; saved?: boolean; saveError?: string | null }>(
+        "/api/ability",
+        {
+          monsterName: monster.monsterName,
+          monsterImageDataUrl: monster.imageDataUrl,
+          abilityName: ability.name,
+          abilityDescription: ability.description,
+          savedMonsterId: savedId ?? undefined,
+        },
+        idToken
+      );
+      const learned: LearnedAbility = { ...ability, imageDataUrl: result.imageDataUrl };
       setLearnedAbility(learned);
       setStage("learned");
 
-      // Isolated from the outer try/catch on purpose: the ability animation
-      // itself already succeeded and the "learned" stage is already showing
-      // it, so a failure saving that update to the Vault shouldn't yank the
-      // user back to the generic error screen — just leave the "saved"
-      // checkmark off and log it.
-      try {
-        const savedId = await savedMonsterIdPromiseRef.current?.catch(() => null);
-        if (savedId) {
-          const idToken = await getIdToken();
-          if (idToken) {
-            await postJson(
-              `/api/monsters/${savedId}/ability`,
-              { abilityName: ability.name, abilityDescription: ability.description, animationImageDataUrl: imageDataUrl },
-              idToken
-            );
-            setAbilitySaved(true);
-          }
-        }
-      } catch (err) {
-        console.error("ability save error:", err);
-        setSaveError(err instanceof Error ? err.message : "Failed to save this ability to your collection");
+      if (result.saved) {
+        setAbilitySaved(true);
+      } else if (result.saveError) {
+        setSaveError(result.saveError);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to learn ability");
