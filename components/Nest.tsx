@@ -30,7 +30,7 @@ export default function Nest({
               style={{ boxShadow: "0 0 16px -4px var(--accent)" }}
             >
               <PanelCorners />
-              <SpriteAnimator imageDataUrl={entry.monster.imageDataUrl} size={64} />
+              <SpriteAnimator imageDataUrl={entry.monster.imageDataUrl} size={64} animated={entry.monster.animated} />
             </button>
           ) : (
             <button

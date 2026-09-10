@@ -1,32 +1,10 @@
 import { CHROMA_KEY_HEX, chromaKeyToTransparentPng } from "./chroma-key";
-import { buildSpriteSheetSuffix, SpriteGrid } from "./sprite";
-import { realignSpriteFrames } from "./sprite-realign";
-
-const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
+import { authHeaders, OPENROUTER_BASE } from "./openrouter-client";
 
 const TEXT_MODEL = "openai/gpt-5.6-luna";
 const IMAGE_MODEL = "openai/gpt-image-2.5-flare";
 
 const CHROMA_KEY_BG_SUFFIX = `Background: fill the ENTIRE background area with one single, perfectly flat, completely uniform, unbroken solid chroma-key color: ${CHROMA_KEY_HEX} (pure magenta/pink) — a solid opaque studio background paint, like a photography green-screen. This is NOT a representation of transparency, so do NOT draw a checkerboard pattern or any transparency icon, and do NOT use any gradient, texture, vignette, or scenery. Every background pixel must be that exact flat magenta color. The subject itself must never use this magenta/pink color anywhere.`;
-
-function getApiKey(): string {
-  const key = process.env.OPENROUTER_API_KEY;
-  if (!key) {
-    throw new Error(
-      "OPENROUTER_API_KEY is not set. Add it to your environment (.env.local or Vercel project settings)."
-    );
-  }
-  return key;
-}
-
-function authHeaders(): Record<string, string> {
-  return {
-    Authorization: `Bearer ${getApiKey()}`,
-    "Content-Type": "application/json",
-    "HTTP-Referer": "https://mega-game.app",
-    "X-Title": "Mega Game",
-  };
-}
 
 function extractJson(raw: string): unknown {
   let text = raw.trim();
@@ -120,30 +98,18 @@ async function requestImage(params: {
   return { ok: true, b64 };
 }
 
+// Generates a single still image (a chroma-keyed transparent PNG) — used
+// for the "reference pose" stills that feed the video-generation step (see
+// lib/video-api.ts), not for animation directly anymore.
 export async function generateImage(params: {
   prompt: string;
   aspectRatio?: string;
   quality?: string;
-  /** true = default idle-loop sprite sheet; a string = custom motion description (e.g. an ability action) */
-  spriteSheet?: boolean | string;
-  /** Grid dimensions for the sprite sheet (defaults to the standard monster/ability 3x3 grid — pass the egg's 2x2 grid explicitly) */
-  spriteGrid?: SpriteGrid;
-  /**
-   * How hard to snap each frame's mass center onto its cell center (0-1,
-   * default 1 = full correction). Idle loops have no intentional
-   * center-of-mass movement, so full alignment is safe; an ability/attack
-   * animation intentionally shifts mass, so pass something lower (e.g. 0.5)
-   * or full alignment will cancel out the real motion along with the drift.
-   */
-  alignStrength?: number;
-  /** Image-to-image reference(s), e.g. an existing monster sprite sheet to keep the design consistent */
+  /** Image-to-image reference(s), e.g. an existing monster still to keep the design consistent */
   referenceImages?: string[];
 }): Promise<string> {
   const aspectRatio = params.aspectRatio ?? "1:1";
   const quality = params.quality ?? "high";
-  const basePrompt = params.spriteSheet
-    ? `${params.prompt} ${buildSpriteSheetSuffix(typeof params.spriteSheet === "string" ? params.spriteSheet : undefined, params.spriteGrid)}`
-    : params.prompt;
 
   // We tried background:"transparent" first here for a while, but this
   // account's OpenRouter routing for IMAGE_MODEL hard-rejects it every time
@@ -152,7 +118,7 @@ export async function generateImage(params: {
   // the chroma-key path that actually works, roughly doubling latency. Go
   // straight to chroma-key.
   const chromaResult = await requestImage({
-    prompt: `${basePrompt} ${CHROMA_KEY_BG_SUFFIX}`,
+    prompt: `${params.prompt} ${CHROMA_KEY_BG_SUFFIX}`,
     aspectRatio,
     quality,
     background: "opaque",
@@ -164,8 +130,5 @@ export async function generateImage(params: {
 
   const rawBuffer = Buffer.from(chromaResult.b64, "base64");
   const transparentBuffer = await chromaKeyToTransparentPng(rawBuffer);
-  const transparentDataUrl = `data:image/png;base64,${transparentBuffer.toString("base64")}`;
-  return params.spriteSheet
-    ? realignSpriteFrames(transparentDataUrl, params.alignStrength ?? 1, params.spriteGrid)
-    : transparentDataUrl;
+  return `data:image/png;base64,${transparentBuffer.toString("base64")}`;
 }

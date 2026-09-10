@@ -25,7 +25,7 @@ export default function MonsterStage({
         <div className="absolute inset-0 rounded-full blur-3xl opacity-30 bg-[var(--accent-2)]" />
         <ParticleBurst color="var(--accent-2)" />
         <div className="relative">
-          <SpriteAnimator imageDataUrl={monster.imageDataUrl} size={280} />
+          <SpriteAnimator imageDataUrl={monster.imageDataUrl} size={280} animated={monster.animated} />
         </div>
       </div>
 

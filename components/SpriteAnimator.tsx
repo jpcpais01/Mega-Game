@@ -1,22 +1,23 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { SPRITE_FPS, SPRITE_GRID_COLS, SPRITE_GRID_ROWS } from "@/lib/sprite";
+import { SPRITE_FPS, VIDEO_SPRITE_GRID_COLS, VIDEO_SPRITE_GRID_ROWS } from "@/lib/sprite";
 
 export default function SpriteAnimator({
   imageDataUrl,
   size = 280,
   fps = SPRITE_FPS,
-  gridCols = SPRITE_GRID_COLS,
-  gridRows = SPRITE_GRID_ROWS,
+  animated = true,
 }: {
   imageDataUrl: string;
   size?: number;
   fps?: number;
-  gridCols?: number;
-  gridRows?: number;
+  /** false = imageDataUrl is a single plain still (no grid to slice) — pass false for an egg/monster's still reference before its idle-loop video has finished. */
+  animated?: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const gridCols = animated ? VIDEO_SPRITE_GRID_COLS : 1;
+  const gridRows = animated ? VIDEO_SPRITE_GRID_ROWS : 1;
 
   useEffect(() => {
     const canvas = canvasRef.current;

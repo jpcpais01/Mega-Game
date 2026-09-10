@@ -27,6 +27,7 @@ function toSummary(saved: SavedMonster): SavedMonsterSummary {
     monsterName: saved.monsterName,
     monsterLore: saved.monsterLore,
     monsterImageDataUrl: saved.monsterImageDataUrl,
+    monsterAnimated: saved.monsterAnimated,
     abilities: saved.abilities,
     learnedAbility: saved.learnedAbility
       ? { name: saved.learnedAbility.name, description: saved.learnedAbility.description }
@@ -64,6 +65,7 @@ export async function POST(req: NextRequest) {
     const monsterName: unknown = body?.monsterName;
     const monsterLore: unknown = body?.monsterLore;
     const monsterImageDataUrl: unknown = body?.monsterImageDataUrl;
+    const monsterAnimated: unknown = body?.monsterAnimated;
     const abilities: unknown = body?.abilities;
 
     if (
@@ -75,6 +77,7 @@ export async function POST(req: NextRequest) {
       typeof monsterName !== "string" ||
       typeof monsterLore !== "string" ||
       typeof monsterImageDataUrl !== "string" ||
+      typeof monsterAnimated !== "boolean" ||
       !Array.isArray(abilities)
     ) {
       return NextResponse.json({ error: "Missing or invalid monster fields" }, { status: 400 });
@@ -100,6 +103,7 @@ export async function POST(req: NextRequest) {
       monsterName,
       monsterLore,
       monsterImageDataUrl: monsterImageShrunk,
+      monsterAnimated,
       abilities: abilities as Ability[],
       learnedAbility: null,
       createdAt: Timestamp.now(),

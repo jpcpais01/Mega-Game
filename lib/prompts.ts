@@ -88,13 +88,17 @@ export function monsterDesignerUserPrompt(params: {
   return `Egg name: ${params.eggName}\nEgg lore: ${params.lore}\nEgg stats: ${statsList}\nEssences used: ${essenceList}\n\nDesign the hatched monster now.`;
 }
 
-// Used for the image-to-image ability-animation request: the reference image
-// already shows the monster's exact design, so this only needs to describe
-// the action — re-describing appearance would fight the reference image.
-export function abilityAnimationPrompt(params: { monsterName: string; abilityName: string; abilityDescription: string }): string {
-  return `This is ${params.monsterName}, an existing game creature. Using this exact reference image — same character design, proportions, colors, and art style, do not redesign it — depict it performing its ability "${params.abilityName}": ${params.abilityDescription}`;
+// Shared constraints for every generated sprite video (egg idle, monster
+// idle, ability/attack) — the reference image already shows the exact
+// character design, so this only needs to pin down motion style, the
+// chroma-key background, and looping, not re-describe appearance.
+const VIDEO_LOOP_STYLE_INSTRUCTION =
+  "This is a looping sprite animation for a 2D pixel-art game. Keep the exact character design, colors, proportions, and pixel-art style from the reference image identical in every single frame — never redesign, restyle, recolor, or change the art style. Keep the background a single, perfectly flat, unbroken solid chroma-key magenta color (#FF00FF) in every frame — no gradient, vignette, shadow, lighting change, texture, or scenery. The camera never moves, zooms, or pans — only the subject's pose changes. Motion should read as a deliberate, low-frame-rate pixel-art animation (about 10 distinct poses per second) with crisp pose-to-pose changes, not smooth motion blur. The animation must loop seamlessly: the very last frame must match the very first frame's pose exactly, so it can repeat forever with no visible jump or pop.";
+
+export function idleSpriteVideoPrompt(): string {
+  return `A calm, subtle idle motion appropriate to the subject — a gentle breathe, bob, pulse, or flicker, nothing dramatic or fast. ${VIDEO_LOOP_STYLE_INSTRUCTION}`;
 }
 
-export function abilityAnimationMotion(params: { abilityName: string; abilityDescription: string }): string {
-  return `the creature performing its ability "${params.abilityName}" (${params.abilityDescription}) as a single continuous action`;
+export function abilitySpriteVideoPrompt(params: { monsterName: string; abilityName: string; abilityDescription: string }): string {
+  return `This is ${params.monsterName}, an existing game creature, performing its ability "${params.abilityName}": ${params.abilityDescription}. It returns to its resting pose by the final frame. ${VIDEO_LOOP_STYLE_INSTRUCTION}`;
 }

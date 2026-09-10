@@ -110,7 +110,7 @@ export default function CollectionPage() {
         <div className="grid grid-cols-2 gap-3 w-full pop-in">
           {monsters.map((m) => (
             <GamePanel key={m.id} className="rounded-2xl p-3 flex flex-col items-center gap-1.5" glow="var(--accent)">
-              <SpriteAnimator imageDataUrl={m.monsterImageDataUrl} size={100} />
+              <SpriteAnimator imageDataUrl={m.monsterImageDataUrl} size={100} animated={m.monsterAnimated} />
               <p className="text-sm font-bold text-center truncate w-full">{m.monsterName}</p>
               <p className="text-[10px] text-[var(--text-dim)] text-center line-clamp-2">{m.monsterLore}</p>
               <div className="flex gap-1 flex-wrap justify-center">

@@ -19,8 +19,17 @@ type Stage = "nest" | "view" | "pick" | "egg" | "monster" | "ability" | "learned
 const NEST_SIZE = 5;
 
 const EGG_DETAILS_STATUS_MESSAGES = ["Blending essences…", "Consulting the Egg Creator…"];
-const HATCH_STATUS_MESSAGES = ["Designing the monster…", "Rendering monster sprite sheet…"];
-const ABILITY_STATUS_MESSAGES = ["Channeling the ability…", "Rendering ability animation…"];
+const HATCH_STATUS_MESSAGES = ["Designing the monster…", "Sketching a reference pose…"];
+const ABILITY_STATUS_MESSAGES = [
+  "Channeling the ability…",
+  "Directing the animation…",
+  "Rendering the ability video…",
+  "This can take a couple of minutes…",
+  "Compositing sprite frames…",
+];
+
+const VIDEO_POLL_INTERVAL_MS = 4000;
+const VIDEO_POLL_MAX_ATTEMPTS = 90; // ~6 minutes ceiling
 
 async function postJson<T>(url: string, body: unknown, idToken?: string | null): Promise<T> {
   const res = await fetch(url, {
@@ -36,6 +45,45 @@ async function postJson<T>(url: string, body: unknown, idToken?: string | null):
   return data as T;
 }
 
+type SpriteVideoResult = { imageDataUrl: string; saved?: boolean; saveError?: string | null };
+
+// Video generation routinely takes well past a minute, so the server only
+// ever submits the job and returns its id — this polls a status endpoint
+// from the client instead of waiting inside one request, which would risk
+// the platform's own function-duration limit regardless of how the server
+// code is written.
+async function pollSpriteVideo(
+  jobId: string,
+  extraParams: Record<string, string> = {},
+  idToken?: string | null
+): Promise<SpriteVideoResult> {
+  for (let attempt = 0; attempt < VIDEO_POLL_MAX_ATTEMPTS; attempt++) {
+    const params = new URLSearchParams({ jobId, ...extraParams });
+    const res = await fetch(`/api/sprite-video/status?${params.toString()}`, {
+      headers: idToken ? { Authorization: `Bearer ${idToken}` } : {},
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(data?.error ?? "Failed to check animation status");
+    if (data.status === "completed") return data as SpriteVideoResult;
+    if (data.status === "failed" || data.status === "cancelled" || data.status === "expired") {
+      throw new Error(data.error ?? `Animation generation ${data.status}`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, VIDEO_POLL_INTERVAL_MS));
+  }
+  throw new Error("Timed out waiting for the animation to render");
+}
+
+async function submitSpriteVideo(params: {
+  stillImageDataUrl: string;
+  kind: "idle" | "ability";
+  monsterName?: string;
+  abilityName?: string;
+  abilityDescription?: string;
+}): Promise<string> {
+  const { jobId } = await postJson<{ jobId: string }>("/api/sprite-video/submit", params);
+  return jobId;
+}
+
 export default function Home() {
   const { user, getIdToken } = useAuth();
   const { unlockedIds } = useUnlockedEssences();
@@ -46,7 +94,9 @@ export default function Home() {
 
   const [egg, setEgg] = useState<EggData | null>(null);
   const [eggImageFailed, setEggImageFailed] = useState(false);
+  const [eggAnimationSettled, setEggAnimationSettled] = useState(false);
   const [monster, setMonster] = useState<MonsterData | null>(null);
+  const [monsterAnimationSettled, setMonsterAnimationSettled] = useState(false);
   const [learnedAbility, setLearnedAbility] = useState<LearnedAbility | null>(null);
   const [monsterSaved, setMonsterSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -80,6 +130,11 @@ export default function Home() {
   // the whole thing to the signed-in user's collection in the background —
   // no explicit "save" button needed. Guests just skip this silently.
   //
+  // Also waits for both idle animations to settle (succeeded or failed) so
+  // the Vault always gets the best available image — animated if the video
+  // finished in time, the still as a fallback if it didn't — rather than
+  // racing to save the bare still the instant it's ready.
+  //
   // The user check must come BEFORE the autoSaveStartedRef lock: Firebase
   // auth state resolves asynchronously, so this effect can fire once while
   // `user` is still null (not yet hydrated) even for a signed-in visitor.
@@ -90,6 +145,7 @@ export default function Home() {
   useEffect(() => {
     if (autoSaveStartedRef.current) return;
     if (!monster || !egg?.imageDataUrl) return;
+    if (!eggAnimationSettled || !monsterAnimationSettled) return;
     if (!user) return;
     autoSaveStartedRef.current = true;
 
@@ -107,6 +163,7 @@ export default function Home() {
           monsterName: monster.monsterName,
           monsterLore: monster.lore,
           monsterImageDataUrl: monster.imageDataUrl,
+          monsterAnimated: monster.animated,
           abilities: monster.abilities,
         },
         idToken
@@ -120,7 +177,7 @@ export default function Home() {
         console.error("auto-save error:", err);
         setSaveError(err instanceof Error ? err.message : "Failed to save this monster to your collection");
       });
-  }, [monster, egg, user, getIdToken]);
+  }, [monster, egg, user, getIdToken, eggAnimationSettled, monsterAnimationSettled]);
 
   function beginMonsterGeneration(details: EggDetails) {
     const promise = postJson<MonsterData>("/api/hatch", {
@@ -130,27 +187,62 @@ export default function Home() {
       essenceIds: details.essenceIds,
     }).then((m) => {
       setMonster(m);
+      // Kick off the monster's own idle animation in the background — don't
+      // block the hatch reveal on it, and don't let it clobber a fresher
+      // monster if the player has already moved on to a new egg by the
+      // time it finishes.
+      (async () => {
+        try {
+          const jobId = await submitSpriteVideo({ stillImageDataUrl: m.stillImageDataUrl, kind: "idle" });
+          const result = await pollSpriteVideo(jobId);
+          setMonster((prev) =>
+            prev && prev.stillImageDataUrl === m.stillImageDataUrl
+              ? { ...prev, imageDataUrl: result.imageDataUrl, animated: true }
+              : prev
+          );
+        } catch (err) {
+          console.error("monster animation error:", err);
+        } finally {
+          setMonsterAnimationSettled(true);
+        }
+      })();
       return m;
     });
     monsterPromiseRef.current = promise;
     promise.catch(() => {}); // prevent unhandled-rejection noise; handleHatch awaits & surfaces the real error
   }
 
-  function beginEggImage(details: EggDetails) {
-    postJson<{ imageDataUrl: string }>("/api/egg-image", { imagePrompt: details.imagePrompt })
-      .then(({ imageDataUrl }) => {
-        setEgg((prev) => (prev ? { ...prev, imageDataUrl } : prev));
-      })
-      .catch((err) => {
-        console.error("egg-image error:", err);
-        setEggImageFailed(true);
-      });
+  async function beginEggImage(details: EggDetails) {
+    let stillImageDataUrl: string;
+    try {
+      const result = await postJson<{ imageDataUrl: string }>("/api/egg-image", { imagePrompt: details.imagePrompt });
+      stillImageDataUrl = result.imageDataUrl;
+      setEgg((prev) => (prev ? { ...prev, imageDataUrl: stillImageDataUrl } : prev));
+    } catch (err) {
+      console.error("egg-image error:", err);
+      setEggImageFailed(true);
+      setEggAnimationSettled(true);
+      return;
+    }
+
+    try {
+      const jobId = await submitSpriteVideo({ stillImageDataUrl, kind: "idle" });
+      const result = await pollSpriteVideo(jobId);
+      setEgg((prev) => (prev ? { ...prev, imageDataUrl: result.imageDataUrl, animated: true } : prev));
+    } catch (err) {
+      console.error("egg animation error:", err);
+      // Keep showing the still — the animation upgrade just didn't happen.
+    } finally {
+      setEggAnimationSettled(true);
+    }
   }
 
   function resetWorkingState() {
     setEgg(null);
     setEggImageFailed(false);
+    setEggAnimationSettled(false);
     setMonster(null);
+    setMonsterAnimationSettled(false);
     setLearnedAbility(null);
     setMonsterSaved(false);
     setSaveError(null);
@@ -199,7 +291,9 @@ export default function Home() {
   async function handleForge(essenceIds: string[]) {
     setError(null);
     setEggImageFailed(false);
+    setEggAnimationSettled(false);
     setMonster(null);
+    setMonsterAnimationSettled(false);
     setLearnedAbility(null);
     setMonsterSaved(false);
     setSaveError(null);
@@ -211,7 +305,7 @@ export default function Home() {
     startStatusCycle(EGG_DETAILS_STATUS_MESSAGES);
     try {
       const details = await postJson<EggDetails>("/api/egg-details", { essenceIds });
-      setEgg({ ...details, imageDataUrl: null });
+      setEgg({ ...details, imageDataUrl: null, animated: false });
       setStage("egg");
       // Fire both the egg's own artwork and the monster generation in parallel —
       // the monster doesn't need the egg image, only the egg's text details.
@@ -253,21 +347,28 @@ export default function Home() {
     try {
       const savedId = await savedMonsterIdPromiseRef.current?.catch(() => null);
       const idToken = savedId ? await getIdToken() : null;
-      // savedMonsterId tells the route to persist the (server-shrunk) result
-      // in this same request, instead of us sending the full sprite sheet
-      // back to the server a second time — a high-detail sheet can be
-      // several MB, past the platform's request body limit.
-      const result = await postJson<{ imageDataUrl: string; saved?: boolean; saveError?: string | null }>(
-        "/api/ability",
-        {
-          monsterName: monster.monsterName,
-          monsterImageDataUrl: monster.imageDataUrl,
-          abilityName: ability.name,
-          abilityDescription: ability.description,
-          savedMonsterId: savedId ?? undefined,
-        },
-        idToken
-      );
+
+      const jobId = await submitSpriteVideo({
+        stillImageDataUrl: monster.stillImageDataUrl,
+        kind: "ability",
+        monsterName: monster.monsterName,
+        abilityName: ability.name,
+        abilityDescription: ability.description,
+      });
+
+      // savedMonsterId tells the status route to persist the (server-
+      // shrunk) result the moment it's ready, instead of us sending the
+      // full sprite sheet back to the server in a second request — a
+      // detailed sheet can be several MB, past the platform's request
+      // body limit.
+      const extraParams: Record<string, string> = {};
+      if (savedId) {
+        extraParams.savedMonsterId = savedId;
+        extraParams.abilityName = ability.name;
+        extraParams.abilityDescription = ability.description;
+      }
+
+      const result = await pollSpriteVideo(jobId, extraParams, idToken);
       const learned: LearnedAbility = { ...ability, imageDataUrl: result.imageDataUrl };
       setLearnedAbility(learned);
       setStage("learned");

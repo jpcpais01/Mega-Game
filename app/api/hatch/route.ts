@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Essence, ESSENCES } from "@/lib/essences";
-import { GRID_TEMPLATE_INSTRUCTION, gridAlignmentTemplate } from "@/lib/grid-template";
 import { callChatJSON, generateImage } from "@/lib/openrouter";
 import { monsterDesignerSystemPrompt, monsterDesignerUserPrompt } from "@/lib/prompts";
 import { Ability, EggStat, MonsterData } from "@/lib/types";
@@ -87,16 +86,17 @@ export async function POST(req: NextRequest) {
     });
     const monsterJson = validateMonsterJson(rawMonsterJson, essences);
 
-    const template = await gridAlignmentTemplate();
-    const imageDataUrl = await generateImage({
-      prompt: `${monsterJson.imagePrompt} ${GRID_TEMPLATE_INSTRUCTION}`,
-      referenceImages: [template],
-      spriteSheet: true,
-    });
+    // Only the still reference image is generated here — the client
+    // submits it to the video-generation pipeline separately for the
+    // actual animated idle sprite sheet, and keeps this still around to
+    // reuse as the reference for any later ability animation.
+    const stillImageDataUrl = await generateImage({ prompt: monsterJson.imagePrompt });
 
     const monster: MonsterData = {
       ...monsterJson,
-      imageDataUrl,
+      imageDataUrl: stillImageDataUrl,
+      animated: false,
+      stillImageDataUrl,
     };
 
     return NextResponse.json(monster);

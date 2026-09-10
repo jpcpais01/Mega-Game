@@ -13,7 +13,7 @@ export default function AbilityChoice({
 }) {
   return (
     <div className="flex flex-col items-center gap-5 w-full pop-in">
-      <SpriteAnimator imageDataUrl={monster.imageDataUrl} size={140} />
+      <SpriteAnimator imageDataUrl={monster.imageDataUrl} size={140} animated={monster.animated} />
 
       <div className="text-center">
         <h2 className="font-display text-lg text-[var(--gold)]">Choose {monster.monsterName}&apos;s first ability</h2>

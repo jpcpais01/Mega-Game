@@ -21,7 +21,7 @@ export default function SlotDetail({
       <div className="relative w-56 h-56 flex items-center justify-center">
         <div className="absolute inset-0 rounded-full blur-3xl opacity-30 bg-[var(--accent-2)]" />
         <div className="relative">
-          <SpriteAnimator imageDataUrl={monster.imageDataUrl} size={224} />
+          <SpriteAnimator imageDataUrl={monster.imageDataUrl} size={224} animated={monster.animated} />
         </div>
       </div>
 
