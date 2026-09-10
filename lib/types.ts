@@ -39,13 +39,6 @@ export type MonsterData = {
   abilities: Ability[]; // exactly 4 options to choose a first ability from
 };
 
-// A finished monster sitting in one of the home screen's nest slots (in-session,
-// not necessarily the same thing as a Firestore-persisted SavedMonster).
-export type SlotEntry = {
-  monster: MonsterData;
-  learnedAbility: LearnedAbility | null;
-};
-
 // A monster persisted to a signed-in user's collection. Images are stored as
 // downscaled/compressed data URLs directly in the Firestore doc (no Firebase
 // Storage — that requires the paid Blaze plan) — see lib/image-resize.ts.

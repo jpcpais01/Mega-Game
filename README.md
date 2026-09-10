@@ -6,36 +6,34 @@ monster idle on screen as looping pixel-art sprite animations.
 
 ## How the loop works
 
-0. **The Nest** (`components/Nest.tsx`, the home screen) — 5 slots. An empty slot starts a new forge; a filled
-   slot opens `components/SlotDetail.tsx` to review that monster (and release the slot). `app/page.tsx`'s stage
-   machine (`"nest" | "view" | "pick" | "egg" | "monster" | "ability" | "learned"`) tracks which slot is active
-   and, once a monster (optionally with a learned ability) is finished, commits it into that slot and returns
-   to the nest — it's per-session UI state, separate from the persisted collection below.
+0. **The Nest** (`components/Nest.tsx`, the home screen) — 5 slots, each an independent `SlotState` owned by
+   `components/ForgeProvider.tsx` (see item 7 below). Tapping a slot opens whatever screen matches its current
+   status: an empty slot opens the essence picker, a cooking slot opens its live progress view, a finished egg
+   opens the reveal/hatch screen, and so on. `app/page.tsx` only tracks *which* slot is open — all of it is
+   per-session UI state, separate from the persisted collection below.
 1. **Pick essences** — choose 1–5 essences (of 20, repeats allowed) in `components/EssencePicker.tsx`.
 2. **`POST /api/egg-details`** (`app/api/egg-details/route.ts`) — calls the **Egg Creator** LLM
    (`openai/gpt-5.6-luna` via OpenRouter chat completions, JSON mode) with the chosen essences. Returns an egg
    name, a ≤20-word mini lore, five 1–100 stats, and a text-to-image prompt. This is the only step the player
    waits on — it's a fast text-only call.
 3. **Reveal** — `components/EggReveal.tsx` shows the egg immediately (name/lore/stats), with the artwork area as
-   a shimmering placeholder. The instant the egg's details come back, the app fires two requests **in parallel**
-   (see `app/page.tsx`):
-   - **`POST /api/egg-image`** renders the egg's artwork as a sprite sheet (see below) — a soft glow pulse or
-     gentle wobble, not it cracking or hatching.
-   - **`POST /api/hatch`** starts designing and rendering the monster — it only needs the egg's name/lore/stats,
-     not its finished artwork, so there's no reason to wait for the egg image first.
-   Both results stream into the UI as they land; by the time the player taps "Hatch," the monster is often
-   already done.
-4. **`POST /api/hatch`** (`app/api/hatch/route.ts`) calls the **Monster Designer** LLM with the egg's
+   a shimmering placeholder until `POST /api/egg-image` (a soft glow pulse or gentle wobble, not it cracking or
+   hatching) and its idle video finish in the background — see item 7 below for how that background work is
+   started and kept running.
+4. **Hatch is its own real wait** — the monster isn't designed or rendered until the player actually taps
+   "Hatch." `POST /api/hatch` (`app/api/hatch/route.ts`) calls the **Monster Designer** LLM with the egg's
    name/lore/stats/essences to get a monster name, lore, and an image prompt (explicitly excluding any
-   egg/shell — full-body monster only), then renders it the same sprite-sheet way as the egg.
+   egg/shell — full-body monster only), renders its still reference, then waits for its idle video too — so the
+   slot's `"hatching"` status genuinely covers the whole thing, not just the text step.
 5. **Sprite sheets via video** — every animated sprite (egg idle, monster idle, and abilities) is built from a
    short AI-generated *video*, not a single multi-frame image. First a plain still reference image is generated
    (`generateImage()` in `lib/openrouter.ts` — no grid, just the subject on a flat magenta backdrop). That still
-   is submitted to OpenRouter's Video API (`minimax/hailuo-3-max`, `lib/video-api.ts`) as both the first and last
-   frame, with a prompt asking for a calm, seamlessly-looping, 10fps-feeling pixel-art animation on that same
-   flat magenta background. Video generation routinely takes well over a minute, so the server never blocks on
-   it: `POST /api/sprite-video/submit` only submits the job and returns its id; the client polls
-   `GET /api/sprite-video/status?jobId=...` (`app/page.tsx`) until it's done. Once complete, that status route
+   is submitted to OpenRouter's Video API (`minimax/hailuo-3-max`, `lib/video-api.ts`) as the first frame (the
+   model only accepts a single keyframe — sending both first and last frame is a 400), with a prompt asking for a
+   calm, seamlessly-looping, 10fps-feeling pixel-art animation on that same flat magenta background, ending on
+   the same pose it started on. Video generation routinely takes well over a minute, so the server never blocks
+   on it: `POST /api/sprite-video/submit` only submits the job and returns its id; the client polls
+   `GET /api/sprite-video/status?jobId=...` (`components/ForgeProvider.tsx`) until it's done. Once complete, that status route
    downloads the finished video, extracts frames at 10fps with a bundled `ffmpeg` binary (`ffmpeg-static`,
    `lib/video-frames.ts`), chroma-keys each frame individually (`lib/chroma-key.ts` — the video's background can
    drift slightly frame to frame, unlike a single generated image, so keying happens per-frame rather than once
@@ -55,15 +53,27 @@ monster idle on screen as looping pixel-art sprite animations.
    was already saved to the player's collection, the status-poll call also carries that saved id so the
    finished sprite sheet gets persisted server-side the moment it's ready, in the very request that generates
    it — sending a several-MB finished sprite sheet back to the server in a *second* request once blew past
-   Vercel's request body size limit. `components/AbilityLearned.tsx` plays the result.
+   Vercel's request body size limit. `components/SlotDetail.tsx` shows the result once the slot reaches its
+   final `"done"` state.
+7. **Generation survives navigation** — `components/ForgeProvider.tsx` is a React Context mounted once at the
+   root layout (`app/layout.tsx`), above the page component Next.js unmounts on every route change. It owns a
+   `SlotState` per Nest slot (`empty | forging | forge-failed | egg-ready | hatching | monster-ready |
+   learning-ability | done`) and runs every forge/hatch/ability chain as a plain async function that writes its
+   results back into that shared state — never into local component state. That means closing the "generating"
+   view, hopping to the Vault, and coming back later still shows the slot cooking (or done) on the Nest grid,
+   with a live elapsed-time indicator (`components/CookingSlotView.tsx`, `components/Nest.tsx`). `app/page.tsx`
+   is just a thin router over `slots[activeSlot]?.status` from `useForge()`. Each in-flight chain carries its own
+   `AbortController` so leaving a slot's cooking view and tapping "Cancel" can stop it cleanly — `cancel()`
+   rewinds to the last state that has something real in it (hatching → back to the egg, learning an ability →
+   back to the monster) rather than deleting the whole slot; `release()` is the explicit full reset.
 
 ## Accounts & collection
 
 Google sign-in (Firebase Auth) is optional — the whole forge → hatch → ability loop works fully signed out. When
 a player *is* signed in, every hatched monster (plus its learned ability, once chosen) is auto-saved to their
-account in the background, no explicit "save" button — see the `useEffect` in `app/page.tsx` that fires once
-both the monster and the egg's own artwork are ready. `app/collection/page.tsx` lists everything a signed-in
-player has forged.
+account in the background, no explicit "save" button — see `hatch()` in `components/ForgeProvider.tsx`, which
+saves once the monster's own idle animation has settled (succeeded or failed). `app/collection/page.tsx` lists
+everything a signed-in player has forged.
 
 Auth is client-side (`components/AuthProvider.tsx`, Firebase JS SDK, Google provider via `signInWithRedirect`
 for reliability inside an installed PWA where popups are flaky). Firestore is **never** touched from the

@@ -9,11 +9,13 @@ import GamePanel from "./ui/GamePanel";
 export default function EggReveal({
   egg,
   onHatch,
+  onBack,
   loading,
   imageFailed = false,
 }: {
   egg: EggData;
   onHatch: () => void;
+  onBack: () => void;
   loading: boolean;
   imageFailed?: boolean;
 }) {
@@ -46,6 +48,9 @@ export default function EggReveal({
       <GameButton onClick={onHatch} disabled={loading}>
         {loading ? "Hatching…" : "Hatch Egg"}
       </GameButton>
+      <button onClick={onBack} className="text-xs text-[var(--text-dim)] underline underline-offset-2 -mt-3">
+        Back to Nest
+      </button>
     </div>
   );
 }

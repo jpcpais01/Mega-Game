@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Cinzel, Outfit } from "next/font/google";
 import { AuthProvider } from "@/components/AuthProvider";
+import { ForgeProvider } from "@/components/ForgeProvider";
 import GameShell from "@/components/GameShell";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import PageTransition from "@/components/ui/PageTransition";
@@ -52,9 +53,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col">
         <WorldBackdrop />
         <AuthProvider>
-          <GameShell>
-            <PageTransition>{children}</PageTransition>
-          </GameShell>
+          <ForgeProvider>
+            <GameShell>
+              <PageTransition>{children}</PageTransition>
+            </GameShell>
+          </ForgeProvider>
         </AuthProvider>
         <ServiceWorkerRegister />
       </body>

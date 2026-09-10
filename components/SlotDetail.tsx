@@ -1,21 +1,21 @@
 "use client";
 
-import { SlotEntry } from "@/lib/types";
+import { MonsterData, LearnedAbility } from "@/lib/types";
 import SpriteAnimator from "./SpriteAnimator";
 import GameButton from "./ui/GameButton";
 import GamePanel from "./ui/GamePanel";
 
 export default function SlotDetail({
-  entry,
+  monster,
+  learnedAbility,
   onClose,
   onRelease,
 }: {
-  entry: SlotEntry;
+  monster: MonsterData;
+  learnedAbility: LearnedAbility | null;
   onClose: () => void;
   onRelease: () => void;
 }) {
-  const { monster, learnedAbility } = entry;
-
   return (
     <div className="flex flex-col items-center gap-6 w-full pop-in">
       <div className="relative w-56 h-56 flex items-center justify-center">

@@ -7,9 +7,11 @@ import { PanelCorners } from "./ui/GamePanel";
 export default function AbilityChoice({
   monster,
   onChoose,
+  onBack,
 }: {
   monster: MonsterData;
   onChoose: (ability: Ability) => void;
+  onBack: () => void;
 }) {
   return (
     <div className="flex flex-col items-center gap-5 w-full pop-in">
@@ -33,6 +35,10 @@ export default function AbilityChoice({
           </button>
         ))}
       </div>
+
+      <button onClick={onBack} className="text-xs text-[var(--text-dim)] underline underline-offset-2">
+        Back to Nest
+      </button>
     </div>
   );
 }
