@@ -39,6 +39,7 @@ export default function CookingSlotView({
   title,
   subtitle,
   imageDataUrl,
+  imageAnimated = false,
   onBack,
   onCancel,
 }: {
@@ -46,8 +47,10 @@ export default function CookingSlotView({
   startedAt: number;
   title: string;
   subtitle?: string;
-  /** The egg/monster's current art, if there already is one — shown (with a gentle pulse) instead of a bare placeholder while this step cooks. */
+  /** The egg/monster's current art, if there already is one — shown instead of a bare placeholder while this step cooks. */
   imageDataUrl?: string;
+  /** True when imageDataUrl is already a playing idle loop (e.g. the monster while learning an ability) — its own motion is enough "in progress" cue, so the artificial pulse is skipped to avoid fighting it. */
+  imageAnimated?: boolean;
   onBack: () => void;
   onCancel: () => void;
 }) {
@@ -67,7 +70,7 @@ export default function CookingSlotView({
       <div className="relative w-56 h-56 flex items-center justify-center">
         <div className="absolute inset-0 rounded-full blur-3xl opacity-30 bg-[var(--accent)]" />
         {imageDataUrl ? (
-          <div className="relative animate-pulse">
+          <div className={`relative ${imageAnimated ? "" : "animate-pulse"}`}>
             <SpriteAnimator imageDataUrl={imageDataUrl} size={224} />
           </div>
         ) : (

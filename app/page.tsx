@@ -164,6 +164,7 @@ export default function Home() {
           title="Learning an ability…"
           subtitle={slot.ability.name}
           imageDataUrl={slot.monster.imageDataUrl}
+          imageAnimated={slot.monster.animated}
           onBack={backToNest}
           onCancel={() => {
             cancel(activeSlot);
