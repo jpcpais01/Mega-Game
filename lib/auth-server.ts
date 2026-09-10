@@ -10,8 +10,14 @@ export async function requireUser(req: NextRequest): Promise<{ uid: string; emai
   if (!token) {
     throw new UnauthorizedError("Missing Authorization header");
   }
+  // Only the token-verification call itself should map to "invalid session" —
+  // adminAuth() initializing the Admin SDK (e.g. missing server env vars) is
+  // a distinct, unrelated failure. Catching both together used to swallow
+  // the real "Firebase Admin env vars are missing" message and report a
+  // misleading "sign in again" instead, sending debugging down the wrong path.
+  const auth = adminAuth();
   try {
-    const decoded = await adminAuth().verifyIdToken(token);
+    const decoded = await auth.verifyIdToken(token);
     return { uid: decoded.uid, email: decoded.email ?? null };
   } catch {
     throw new UnauthorizedError("Invalid or expired session — please sign in again");

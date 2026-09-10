@@ -39,7 +39,10 @@ export default function CollectionPage() {
               : `Failed to load collection (status ${res.status}).`
           );
         }
-        if (!res.ok) throw new Error((data as { error?: string })?.error ?? "Failed to load collection");
+        if (!res.ok) {
+          const serverMessage = (data as { error?: string })?.error;
+          throw new Error(serverMessage ? `${serverMessage} (status ${res.status})` : `Failed to load collection (status ${res.status})`);
+        }
         if (!cancelled) setMonsters((data as { monsters: SavedMonsterSummary[] }).monsters);
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load collection");
