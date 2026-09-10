@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import SpriteAnimator from "./SpriteAnimator";
 import GameButton from "./ui/GameButton";
 import GamePanel from "./ui/GamePanel";
 
@@ -37,6 +38,7 @@ export default function CookingSlotView({
   startedAt,
   title,
   subtitle,
+  imageDataUrl,
   onBack,
   onCancel,
 }: {
@@ -44,6 +46,8 @@ export default function CookingSlotView({
   startedAt: number;
   title: string;
   subtitle?: string;
+  /** The egg/monster's current art, if there already is one — shown (with a gentle pulse) instead of a bare placeholder while this step cooks. */
+  imageDataUrl?: string;
   onBack: () => void;
   onCancel: () => void;
 }) {
@@ -62,7 +66,13 @@ export default function CookingSlotView({
     <div className="flex flex-col items-center gap-6 w-full pop-in">
       <div className="relative w-56 h-56 flex items-center justify-center">
         <div className="absolute inset-0 rounded-full blur-3xl opacity-30 bg-[var(--accent)]" />
-        <div className="relative w-4/5 h-4/5 rounded-full shimmer" />
+        {imageDataUrl ? (
+          <div className="relative animate-pulse">
+            <SpriteAnimator imageDataUrl={imageDataUrl} size={224} />
+          </div>
+        ) : (
+          <div className="relative w-4/5 h-4/5 rounded-full shimmer" />
+        )}
       </div>
 
       <div className="text-center">

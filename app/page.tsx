@@ -110,6 +110,7 @@ export default function Home() {
           startedAt={slot.startedAt}
           title="Hatching…"
           subtitle={slot.egg.eggName}
+          imageDataUrl={slot.egg.imageDataUrl}
           onBack={backToNest}
           onCancel={() => {
             cancel(activeSlot);
@@ -162,6 +163,7 @@ export default function Home() {
           startedAt={slot.startedAt}
           title="Learning an ability…"
           subtitle={slot.ability.name}
+          imageDataUrl={slot.monster.imageDataUrl}
           onBack={backToNest}
           onCancel={() => {
             cancel(activeSlot);

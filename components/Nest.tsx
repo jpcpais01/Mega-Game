@@ -45,7 +45,7 @@ function SlotTile({ index, slot, onTap }: { index: number; slot: SlotState; onTa
     );
   }
 
-  if (slot.status === "forging" || slot.status === "hatching") {
+  if (slot.status === "forging") {
     return (
       <button
         onClick={() => onTap(index)}
@@ -53,6 +53,19 @@ function SlotTile({ index, slot, onTap }: { index: number; slot: SlotState; onTa
       >
         <PanelCorners />
         <div className="w-3/5 h-3/5 rounded-full shimmer" />
+        <ElapsedBadge startedAt={slot.startedAt} />
+      </button>
+    );
+  }
+
+  if (slot.status === "hatching") {
+    return (
+      <button
+        onClick={() => onTap(index)}
+        className="game-panel relative rounded-2xl aspect-square flex items-center justify-center overflow-hidden active:scale-95 transition-transform opacity-70"
+      >
+        <PanelCorners />
+        <SpriteAnimator imageDataUrl={slot.egg.imageDataUrl} size={64} />
         <ElapsedBadge startedAt={slot.startedAt} />
       </button>
     );
