@@ -16,7 +16,6 @@ export type VideoJobStatus = {
 export async function submitVideoJob(params: {
   prompt: string;
   firstFrameImageDataUrl: string;
-  lastFrameImageDataUrl?: string;
   duration?: 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15;
   resolution?: "768p" | "480p";
   aspectRatio?: "21:9" | "16:9" | "4:3" | "1:1" | "3:4" | "9:16";
@@ -30,16 +29,11 @@ export async function submitVideoJob(params: {
       duration: params.duration ?? 5,
       resolution: params.resolution ?? "480p",
       aspect_ratio: params.aspectRatio ?? "1:1",
-      // Same still image for both ends — the model is told (in the prompt)
-      // to loop back to its starting pose, and pinning both endpoints to
-      // the identical reference frame is what actually enforces that.
+      // This model only accepts a single keyframe image (first_frame OR
+      // last_frame, never both — sending both is a 400). The loop-back-to-
+      // start behavior is enforced entirely through the prompt instead.
       frame_images: [
         { type: "image_url", image_url: { url: params.firstFrameImageDataUrl }, frame_type: "first_frame" },
-        {
-          type: "image_url",
-          image_url: { url: params.lastFrameImageDataUrl ?? params.firstFrameImageDataUrl },
-          frame_type: "last_frame",
-        },
       ],
     }),
   });
