@@ -7,6 +7,7 @@ import { Essence } from "./essences";
 // imagePrompt means we can switch strategy without a second text-LLM call.
 const ART_STYLE = [
   "Beautiful, clean 8-bit-style pixel art (crisp hard pixel edges, visibly chunky low-resolution pixels, no anti-aliasing blur, no smooth gradients, a small limited color palette per subject) — think classic NES-era game art, clean and readable, not muddy or noisy.",
+  "Overall aesthetic: gorgeous, polished, and appealing — semi-cute, charming character design in the vein of a beloved mobile monster-collecting game, never ugly, scary, grotesque, or off-putting, even for a fierce or intimidating creature.",
   "Camera: 2.5D isometric game-camera perspective viewed from the front-left, roughly a 30-degree isometric angle (NOT a flat front view, NOT top-down).",
   "The subject is perfectly centered and fully visible within the frame, floating with no ground tile, no platform, no shadow, no scenery, no text, no watermark, no border, no frame.",
   "Single subject only, game-ready asset composition. Do not mention or describe any background — background treatment is handled separately.",
