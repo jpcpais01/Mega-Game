@@ -1,5 +1,6 @@
 import { CHROMA_KEY_HEX, chromaKeyToTransparentPng } from "./chroma-key";
 import { buildSpriteSheetSuffix } from "./sprite";
+import { realignSpriteFrames } from "./sprite-realign";
 
 const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
 
@@ -153,7 +154,8 @@ export async function generateImage(params: {
     });
     if (transparentResult.ok) {
       nativeTransparentSupport = "yes";
-      return `data:image/png;base64,${transparentResult.b64}`;
+      const raw = `data:image/png;base64,${transparentResult.b64}`;
+      return params.spriteSheet ? realignSpriteFrames(raw) : raw;
     }
     nativeTransparentSupport = "no";
     console.warn(
@@ -174,5 +176,6 @@ export async function generateImage(params: {
 
   const rawBuffer = Buffer.from(chromaResult.b64, "base64");
   const transparentBuffer = await chromaKeyToTransparentPng(rawBuffer);
-  return `data:image/png;base64,${transparentBuffer.toString("base64")}`;
+  const transparentDataUrl = `data:image/png;base64,${transparentBuffer.toString("base64")}`;
+  return params.spriteSheet ? realignSpriteFrames(transparentDataUrl) : transparentDataUrl;
 }
