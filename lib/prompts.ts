@@ -89,6 +89,35 @@ export function monsterDesignerUserPrompt(params: {
   return `Egg name: ${params.eggName}\nEgg lore: ${params.lore}\nEgg stats: ${statsList}\nEssences used: ${essenceList}\n\nDesign the hatched monster now.`;
 }
 
+export function newAbilitiesSystemPrompt(): string {
+  return `You are the Monster Designer, a world-building AI for "Mega Game", a mobile monster-collecting game.
+A player wants to teach an already-hatched monster a brand-new attack. Invent exactly 4 candidate abilities for
+it to choose between, consistent with the monster's name, lore, and essences, and distinct from every ability it
+already knows — never repeat or lightly reskin an existing one.
+
+Each needs a short punchy name and a one-sentence description of what it visually does, concrete enough that an
+artist could draw the monster performing it (a specific motion, effect, or attack — not vague flavor text).
+
+Respond with ONLY a strict JSON object, no prose, matching exactly this shape:
+{
+  "abilities": [
+    { "name": string (2-4 words), "description": string (max 15 words, describes a concrete visual action/effect) }
+    // exactly 4 of these, each a distinctly different ability, none repeating an already-known one
+  ]
+}`;
+}
+
+export function newAbilitiesUserPrompt(params: {
+  monsterName: string;
+  monsterLore: string;
+  essences: Essence[];
+  alreadyKnown: string[];
+}): string {
+  const essenceList = params.essences.map((e) => e.name).join(", ");
+  const knownList = params.alreadyKnown.length > 0 ? params.alreadyKnown.join(", ") : "(none yet)";
+  return `Monster name: ${params.monsterName}\nMonster lore: ${params.monsterLore}\nEssences: ${essenceList}\nAbilities already known: ${knownList}\n\nInvent 4 new candidate abilities now.`;
+}
+
 // Shared constraints for every generated sprite video (egg idle, monster
 // idle, ability/attack) — the reference image already shows the exact
 // character design, so this only needs to pin down motion style, the

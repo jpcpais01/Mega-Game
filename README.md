@@ -61,20 +61,37 @@ monster idle on screen as looping pixel-art sprite animations.
    `SlotState` per Nest slot (`empty | forging | forge-failed | egg-ready | hatching | monster-ready |
    learning-ability | done`) and runs every forge/hatch/ability chain as a plain async function that writes its
    results back into that shared state — never into local component state. That means closing the "generating"
-   view, hopping to the Vault, and coming back later still shows the slot cooking (or done) on the Nest grid,
-   with a live elapsed-time indicator (`components/CookingSlotView.tsx`, `components/Nest.tsx`). `app/page.tsx`
-   is just a thin router over `slots[activeSlot]?.status` from `useForge()`. Each in-flight chain carries its own
-   `AbortController` so leaving a slot's cooking view and tapping "Cancel" can stop it cleanly — `cancel()`
-   rewinds to the last state that has something real in it (hatching → back to the egg, learning an ability →
-   back to the monster) rather than deleting the whole slot; `release()` is the explicit full reset.
+   view, hopping to the Vault, and coming back later still shows the slot cooking (or done) on the Nest grid
+   (`components/CookingSlotView.tsx`, `components/Nest.tsx` — no fixed-duration countdown, just a spinner and
+   rotating status text, since the real wait varies job to job). `app/page.tsx` is just a thin router over
+   `slots[activeSlot]?.status` from `useForge()`. Each in-flight chain carries its own `AbortController` so
+   leaving a slot's cooking view and tapping "Cancel" can stop it cleanly — `cancel()` rewinds to the last
+   state that has something real in it (hatching → back to the egg, learning an ability → back to the monster)
+   rather than deleting the whole slot; `release()` is the explicit full reset. The same provider also backs
+   the Vault's "Learn New Attack" flow (`vaultAbilityJobs`, keyed by Firestore monster id instead of a slot
+   index) for the same reason — that job needs to survive navigation too.
 
 ## Accounts & collection
 
 Google sign-in (Firebase Auth) is optional — the whole forge → hatch → ability loop works fully signed out. When
-a player *is* signed in, every hatched monster (plus its learned ability, once chosen) is auto-saved to their
-account in the background, no explicit "save" button — see `hatch()` in `components/ForgeProvider.tsx`, which
-saves once the monster's own idle animation has settled (succeeded or failed). `app/collection/page.tsx` lists
-everything a signed-in player has forged.
+a player *is* signed in, every hatched monster is auto-saved to their account in the background, no explicit
+"save" button — see `hatch()` in `components/ForgeProvider.tsx`, which saves once the monster's own idle
+animation has settled (succeeded or failed). `app/collection/page.tsx` (the Vault) lists everything a signed-in
+player has forged as a 3-per-row grid; each card cycles its art through the monster's idle loop 3 times, then
+each learned attack once in turn, repeating forever (`components/VaultMonsterCard.tsx`, timed off
+`VIDEO_SPRITE_DURATION_SECONDS`). Tapping a card opens `components/VaultMonsterDetail.tsx`, which shows the
+idle animation, every learned attack, and a **Learn New Attack** button — it fetches 4 fresh candidate abilities
+from `POST /api/monsters/[id]/abilities` (an LLM call, given the monster's context and the names it already
+knows, so it won't repeat one), and picking one runs through the exact same submit → poll → animate pipeline as
+the original hatch-time ability choice, via `ForgeProvider`'s `startLearnVaultAbility()` — a per-monster-id
+background job that, like everything else in `ForgeProvider`, survives navigating away and back.
+
+Because a monster can keep learning new attacks indefinitely, each learned ability is its own document in a
+Firestore **subcollection** (`users/{uid}/monsters/{monsterId}/abilities/{abilityId}`) rather than an array
+field on the monster doc — that keeps the monster doc's own size bounded no matter how many attacks it
+eventually learns, instead of risking Firestore's 1MiB single-document cap. `GET /api/monsters` fetches each
+monster's abilities alongside it and merges them into the response; `POST /api/sprite-video/status` is what
+actually writes a newly-finished ability into that subcollection, the moment its animation is ready.
 
 Auth is client-side (`components/AuthProvider.tsx`, Firebase JS SDK, Google provider via `signInWithRedirect`
 for reliability inside an installed PWA where popups are flaky). Firestore is **never** touched from the
@@ -85,16 +102,15 @@ setup steps) since nothing but our own verified server code ever reaches them �
 subtly wrong.
 
 **No Firebase Storage** — new Firebase projects need the paid Blaze plan to use Storage at all, so images are
-stored directly in the Firestore document instead of a separate bucket. A full-resolution animated WebP is too
-big for that (Firestore caps a whole document at 1 MiB, and a monster doc holds up to three images — egg,
-monster, learned ability), so `lib/image-resize.ts`'s `shrinkDataUrlForFirestore()` downscales each one before
-saving — nearest-neighbor, so hard pixel edges stay crisp instead of blurring. It branches on whether the
-source is animated (checked via `sharp(buffer, { animated: true }).metadata().pages`, not just its declared
-mime type): an animated WebP is re-encoded staying animated (`sharp(buffer, { animated: true }).resize(...)`
-keeps every page and its delay), while a plain still is re-encoded as a palette-quantized PNG. Re-encoding an
-animated source through the *non*-animated path would silently flatten it to its first frame only — that's a
-real bug this pipeline had to avoid. This only affects the *persisted* copy in `/collection`; the live
-forge/hatch/ability flow always displays the full-resolution image the model generated.
+stored directly in Firestore documents instead of a separate bucket. A full-resolution animated WebP is too big
+for that, so `lib/image-resize.ts`'s `shrinkDataUrlForFirestore()` downscales each one before saving —
+nearest-neighbor, so hard pixel edges stay crisp instead of blurring. It branches on whether the source is
+animated (checked via `sharp(buffer, { animated: true }).metadata().pages`, not just its declared mime type):
+an animated WebP is re-encoded staying animated (`sharp(buffer, { animated: true }).resize(...)` keeps every
+page and its delay), while a plain still is re-encoded as a palette-quantized PNG. Re-encoding an animated
+source through the *non*-animated path would silently flatten it to its first frame only — that's a real bug
+this pipeline had to avoid. This only affects the *persisted* copy in the Vault; the live forge/hatch/ability
+flow always displays the full-resolution image the model generated.
 
 If `NEXT_PUBLIC_FIREBASE_*` env vars aren't set, the app doesn't crash — `AuthProvider` detects this
 (`isFirebaseConfigured()` in `lib/firebase/client.ts`) and behaves as permanently signed-out: sign-in UI hides

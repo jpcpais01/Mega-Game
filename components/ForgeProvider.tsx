@@ -32,6 +32,14 @@ export type SlotState =
     }
   | { status: "done"; egg: EggData; monster: MonsterData; learnedAbility: LearnedAbility | null };
 
+// Tracks learning a new attack for an already-saved Vault monster — keyed
+// by the monster's Firestore doc id rather than a Nest slot index, but
+// otherwise the same "survives navigation" background-chain pattern.
+export type VaultAbilityJob =
+  | { status: "learning"; ability: Ability; startedAt: number }
+  | { status: "done"; ability: Ability; imageDataUrl: string; savedAbilityId: string | null }
+  | { status: "error"; ability: Ability; error: string };
+
 // Diagnostic info for a slot's most recent animation attempt — kept
 // separate from SlotState's own `error` field, which drives blocking
 // retry UI. This is supplementary: the raw, unsliced video straight from
@@ -52,6 +60,14 @@ type ForgeContextValue = {
   release: (index: number) => void;
   cancel: (index: number) => void;
   dismissError: (index: number) => void;
+  vaultAbilityJobs: Record<string, VaultAbilityJob>;
+  startLearnVaultAbility: (
+    monsterId: string,
+    monster: { stillImageDataUrl: string; monsterName: string },
+    ability: Ability
+  ) => void;
+  cancelLearnVaultAbility: (monsterId: string) => void;
+  clearVaultAbilityJob: (monsterId: string) => void;
 };
 
 const ForgeContext = createContext<ForgeContextValue | null>(null);
@@ -81,6 +97,7 @@ type SpriteVideoResult = {
   debugVideoDataUrl?: string;
   saved?: boolean;
   saveError?: string | null;
+  savedAbilityId?: string | null;
 };
 
 async function pollSpriteVideo(
@@ -146,7 +163,9 @@ export function ForgeProvider({ children }: { children: React.ReactNode }) {
   const { user, getIdToken } = useAuth();
   const [slots, setSlots] = useState<SlotState[]>(() => Array.from({ length: NEST_SIZE }, () => ({ status: "empty" })));
   const [animationDebug, setAnimationDebug] = useState<Record<number, AnimationDebugInfo>>({});
+  const [vaultAbilityJobs, setVaultAbilityJobs] = useState<Record<string, VaultAbilityJob>>({});
   const abortControllersRef = useRef<Map<number, AbortController>>(new Map());
+  const vaultAbortControllersRef = useRef<Map<string, AbortController>>(new Map());
   // Auth state used inside long-running background chains via a ref, since
   // those chains outlive any single render and closures would otherwise
   // capture a stale `user`/`getIdToken` from whenever they started.
@@ -276,6 +295,7 @@ export function ForgeProvider({ children }: { children: React.ReactNode }) {
                   monsterLore: monster.lore,
                   monsterImageDataUrl: monster.imageDataUrl,
                   monsterAnimated: monster.animated,
+                  monsterStillImageDataUrl: monster.stillImageDataUrl,
                   abilities: monster.abilities,
                 },
                 idToken,
@@ -424,6 +444,88 @@ export function ForgeProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
+  // Learning a new attack for a monster already sitting in the Vault —
+  // same submit+poll+persist chain as chooseAbility() above, but keyed by
+  // Firestore doc id instead of a Nest slot index, and reading its own
+  // reference image straight from the monster passed in (not from any
+  // in-progress SlotState) since the monster may have been loaded fresh
+  // from a previous session.
+  const startLearnVaultAbility = useCallback(
+    (monsterId: string, monster: { stillImageDataUrl: string; monsterName: string }, ability: Ability) => {
+      vaultAbortControllersRef.current.get(monsterId)?.abort();
+      const controller = new AbortController();
+      vaultAbortControllersRef.current.set(monsterId, controller);
+      const signal = controller.signal;
+
+      setVaultAbilityJobs((prev) => ({ ...prev, [monsterId]: { status: "learning", ability, startedAt: Date.now() } }));
+
+      (async () => {
+        try {
+          const jobId = await submitSpriteVideo(
+            {
+              stillImageDataUrl: monster.stillImageDataUrl,
+              kind: "ability",
+              monsterName: monster.monsterName,
+              abilityName: ability.name,
+              abilityDescription: ability.description,
+            },
+            signal
+          );
+
+          const { getIdToken: currentGetIdToken } = authRef.current;
+          const idToken = await currentGetIdToken();
+          const result = await pollSpriteVideo(
+            jobId,
+            { savedMonsterId: monsterId, abilityName: ability.name, abilityDescription: ability.description },
+            idToken,
+            signal
+          );
+
+          if (result.saved) {
+            setVaultAbilityJobs((prev) => ({
+              ...prev,
+              [monsterId]: {
+                status: "done",
+                ability,
+                imageDataUrl: result.imageDataUrl,
+                savedAbilityId: result.savedAbilityId ?? null,
+              },
+            }));
+          } else {
+            throw new Error(result.saveError ?? "Failed to save this ability to your collection");
+          }
+        } catch (err) {
+          if (isAbortError(err)) return;
+          console.error("vault ability error:", err);
+          setVaultAbilityJobs((prev) => ({
+            ...prev,
+            [monsterId]: { status: "error", ability, error: err instanceof Error ? err.message : "Failed to learn ability" },
+          }));
+        }
+      })();
+    },
+    []
+  );
+
+  const cancelLearnVaultAbility = useCallback((monsterId: string) => {
+    vaultAbortControllersRef.current.get(monsterId)?.abort();
+    vaultAbortControllersRef.current.delete(monsterId);
+    setVaultAbilityJobs((prev) => {
+      const next = { ...prev };
+      delete next[monsterId];
+      return next;
+    });
+  }, []);
+
+  const clearVaultAbilityJob = useCallback((monsterId: string) => {
+    setVaultAbilityJobs((prev) => {
+      if (!(monsterId in prev)) return prev;
+      const next = { ...prev };
+      delete next[monsterId];
+      return next;
+    });
+  }, []);
+
   return (
     <ForgeContext.Provider
       value={{
@@ -437,6 +539,10 @@ export function ForgeProvider({ children }: { children: React.ReactNode }) {
         release,
         cancel,
         dismissError,
+        vaultAbilityJobs,
+        startLearnVaultAbility,
+        cancelLearnVaultAbility,
+        clearVaultAbilityJob,
       }}
     >
       {children}

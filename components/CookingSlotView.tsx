@@ -26,13 +26,6 @@ const MESSAGES_BY_KIND = {
   "learning-ability": LEARNING_MESSAGES,
 };
 
-function formatElapsed(ms: number): string {
-  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-}
-
 export default function CookingSlotView({
   kind,
   startedAt,
@@ -83,8 +76,8 @@ export default function CookingSlotView({
         {subtitle && <p className="text-sm text-[var(--text-dim)] mt-1 max-w-xs mx-auto">{subtitle}</p>}
       </div>
 
-      <GamePanel className="rounded-2xl p-4 w-full flex flex-col items-center gap-2">
-        <p className="font-display text-2xl text-[var(--gold)] tabular-nums">{formatElapsed(elapsedMs)}</p>
+      <GamePanel className="rounded-2xl p-4 w-full flex flex-col items-center gap-3">
+        <div className="w-8 h-8 rounded-full border-4 border-[var(--accent)]/30 border-t-[var(--accent)] spin-slow" />
         <p className="text-xs text-[var(--text-dim)] text-center min-h-[1.5em]">{messages[messageIndex]}</p>
       </GamePanel>
 

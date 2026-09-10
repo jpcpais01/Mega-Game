@@ -1,3 +1,4 @@
+import { Timestamp } from "firebase-admin/firestore";
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { framesToAnimatedWebp } from "@/lib/animated-image";
@@ -45,6 +46,7 @@ export async function GET(req: NextRequest) {
 
       let saved = false;
       let saveError: string | null = null;
+      let savedAbilityId: string | null = null;
       if (savedMonsterId && abilityName && abilityDescription) {
         try {
           const { requireUser } = await import("@/lib/auth-server");
@@ -54,9 +56,17 @@ export async function GET(req: NextRequest) {
           const snapshot = await docRef.get();
           if (!snapshot.exists) throw new Error("Monster not found");
           const shrunkImageDataUrl = await shrinkDataUrlForFirestore(imageDataUrl);
-          await docRef.update({
-            learnedAbility: { name: abilityName, description: abilityDescription, imageDataUrl: shrunkImageDataUrl },
+          // Each learned ability is its own document in a subcollection, not
+          // an array field on the monster doc — a monster can keep learning
+          // new attacks indefinitely without ever risking Firestore's 1MiB
+          // single-document size cap.
+          const abilityRef = await docRef.collection("abilities").add({
+            name: abilityName,
+            description: abilityDescription,
+            imageDataUrl: shrunkImageDataUrl,
+            learnedAt: Timestamp.now(),
           });
+          savedAbilityId = abilityRef.id;
           saved = true;
         } catch (err) {
           saveError = err instanceof Error ? err.message : "Failed to save this ability to your collection";
@@ -64,7 +74,7 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      return NextResponse.json({ status: "completed", imageDataUrl, debugVideoDataUrl, saved, saveError });
+      return NextResponse.json({ status: "completed", imageDataUrl, debugVideoDataUrl, saved, saveError, savedAbilityId });
     }
 
     if (job.status === "failed" || job.status === "cancelled" || job.status === "expired") {

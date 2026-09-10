@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { validateAbilities } from "@/lib/abilities";
 import { Essence, ESSENCES } from "@/lib/essences";
 import { callChatJSON, generateImage } from "@/lib/openrouter";
 import { monsterDesignerSystemPrompt, monsterDesignerUserPrompt } from "@/lib/prompts";
@@ -13,27 +14,6 @@ type RawMonsterJson = {
   imagePrompt?: unknown;
   abilities?: unknown;
 };
-
-function validateAbilities(raw: unknown, essences: Essence[]): Ability[] {
-  const abilities: Ability[] = [];
-  if (Array.isArray(raw)) {
-    for (const entry of raw) {
-      const a = entry as { name?: unknown; description?: unknown };
-      if (typeof a.name === "string" && a.name.trim() && typeof a.description === "string" && a.description.trim()) {
-        abilities.push({ name: a.name.trim(), description: a.description.trim() });
-      }
-      if (abilities.length === 4) break;
-    }
-  }
-  while (abilities.length < 4) {
-    const essence = essences[abilities.length % essences.length];
-    abilities.push({
-      name: `${essence.name} Strike`,
-      description: `Channels raw ${essence.name.toLowerCase()} essence into a quick offensive strike.`,
-    });
-  }
-  return abilities;
-}
 
 function validateMonsterJson(
   raw: unknown,
