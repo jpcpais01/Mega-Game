@@ -6,12 +6,13 @@ import AppHeader from "@/components/AppHeader";
 import { useAuth } from "@/components/AuthProvider";
 import SpriteAnimator from "@/components/SpriteAnimator";
 import { getEssence } from "@/lib/essences";
-import { SavedMonster } from "@/lib/types";
+import { SavedMonsterSummary } from "@/lib/types";
 
 export default function CollectionPage() {
   const { user, loading: authLoading, configured, signIn, getIdToken } = useAuth();
-  const [monsters, setMonsters] = useState<SavedMonster[] | null>(null);
+  const [monsters, setMonsters] = useState<SavedMonsterSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [retryTick, setRetryTick] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -20,14 +21,25 @@ export default function CollectionPage() {
         if (!cancelled) setMonsters(null);
         return;
       }
+      setError(null);
       try {
         const idToken = await getIdToken();
         const res = await fetch("/api/monsters", {
           headers: idToken ? { Authorization: `Bearer ${idToken}` } : {},
         });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data?.error ?? "Failed to load collection");
-        if (!cancelled) setMonsters(data.monsters as SavedMonster[]);
+        const bodyText = await res.text();
+        let data: unknown;
+        try {
+          data = bodyText ? JSON.parse(bodyText) : {};
+        } catch {
+          throw new Error(
+            res.ok
+              ? "The collection response was cut off (it may be too large) — try again."
+              : `Failed to load collection (status ${res.status}).`
+          );
+        }
+        if (!res.ok) throw new Error((data as { error?: string })?.error ?? "Failed to load collection");
+        if (!cancelled) setMonsters((data as { monsters: SavedMonsterSummary[] }).monsters);
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load collection");
       }
@@ -35,7 +47,7 @@ export default function CollectionPage() {
     return () => {
       cancelled = true;
     };
-  }, [user, getIdToken]);
+  }, [user, getIdToken, retryTick]);
 
   return (
     <main
@@ -67,8 +79,14 @@ export default function CollectionPage() {
         )}
 
         {!authLoading && user && error && (
-          <div className="glass-panel rounded-2xl p-4 w-full text-center mt-10">
+          <div className="glass-panel rounded-2xl p-4 w-full text-center flex flex-col gap-3 mt-10">
             <p className="text-sm text-[var(--danger)]">{error}</p>
+            <button
+              className="glow-btn rounded-xl py-3 text-sm font-bold text-white self-center px-6"
+              onClick={() => setRetryTick((t) => t + 1)}
+            >
+              Try again
+            </button>
           </div>
         )}
 

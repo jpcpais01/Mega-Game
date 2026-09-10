@@ -56,3 +56,12 @@ export type SavedMonster = {
   learnedAbility: LearnedAbility | null;
   createdAt: number; // epoch ms
 };
+
+// Trimmed shape returned by the collection LIST endpoint — the grid only
+// ever shows the monster's own sprite and the learned ability's name, so
+// omitting the egg image and the ability's sprite (both otherwise-unused
+// but sizeable base64 payloads, doubling or tripling response size per
+// monster) keeps the list response from ballooning as a collection grows.
+export type SavedMonsterSummary = Omit<SavedMonster, "eggImageDataUrl" | "learnedAbility"> & {
+  learnedAbility: Ability | null;
+};

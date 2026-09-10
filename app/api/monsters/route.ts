@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser, UnauthorizedError } from "@/lib/auth-server";
 import { adminDb } from "@/lib/firebase/admin";
 import { shrinkDataUrlForFirestore } from "@/lib/image-resize";
-import { Ability, EggStat, SavedMonster } from "@/lib/types";
+import { Ability, EggStat, SavedMonster, SavedMonsterSummary } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -18,11 +18,29 @@ function toSavedMonster(id: string, data: StoredMonster): SavedMonster {
   return { ...data, id, createdAt: data.createdAt.toMillis() };
 }
 
+function toSummary(saved: SavedMonster): SavedMonsterSummary {
+  return {
+    id: saved.id,
+    eggName: saved.eggName,
+    eggLore: saved.eggLore,
+    stats: saved.stats,
+    essenceIds: saved.essenceIds,
+    monsterName: saved.monsterName,
+    monsterLore: saved.monsterLore,
+    monsterImageDataUrl: saved.monsterImageDataUrl,
+    abilities: saved.abilities,
+    learnedAbility: saved.learnedAbility
+      ? { name: saved.learnedAbility.name, description: saved.learnedAbility.description }
+      : null,
+    createdAt: saved.createdAt,
+  };
+}
+
 export async function GET(req: NextRequest) {
   try {
     const { uid } = await requireUser(req);
-    const snapshot = await monstersCollection(uid).orderBy("createdAt", "desc").limit(100).get();
-    const monsters = snapshot.docs.map((doc) => toSavedMonster(doc.id, doc.data() as StoredMonster));
+    const snapshot = await monstersCollection(uid).orderBy("createdAt", "desc").limit(30).get();
+    const monsters = snapshot.docs.map((doc) => toSummary(toSavedMonster(doc.id, doc.data() as StoredMonster)));
     return NextResponse.json({ monsters });
   } catch (err) {
     if (err instanceof UnauthorizedError) {
