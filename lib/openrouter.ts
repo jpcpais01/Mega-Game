@@ -7,16 +7,7 @@ const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
 const TEXT_MODEL = "openai/gpt-5.6-luna";
 const IMAGE_MODEL = "openai/gpt-image-2.5-flare";
 
-const TRANSPARENT_BG_SUFFIX =
-  "Background: fully transparent. Render the background pixels with alpha 0 (a genuine transparent PNG alpha channel, like a game sprite asset) — not white, not a color fill, not a checkerboard pattern, not a gradient.";
-
 const CHROMA_KEY_BG_SUFFIX = `Background: fill the ENTIRE background area with one single, perfectly flat, completely uniform, unbroken solid chroma-key color: ${CHROMA_KEY_HEX} (pure magenta/pink) — a solid opaque studio background paint, like a photography green-screen. This is NOT a representation of transparency, so do NOT draw a checkerboard pattern or any transparency icon, and do NOT use any gradient, texture, vignette, or scenery. Every background pixel must be that exact flat magenta color. The subject itself must never use this magenta/pink color anywhere.`;
-
-// Cached per-process: whether OpenRouter's current provider for IMAGE_MODEL
-// actually accepts background:"transparent", so repeat calls in the same
-// warm serverless instance skip straight to whichever strategy works
-// instead of re-probing every time.
-let nativeTransparentSupport: "unknown" | "yes" | "no" = "unknown";
 
 function getApiKey(): string {
   const key = process.env.OPENROUTER_API_KEY;
@@ -97,7 +88,7 @@ async function requestImage(params: {
   prompt: string;
   aspectRatio: string;
   quality: string;
-  background: "transparent" | "opaque";
+  background: "opaque";
   referenceImages?: string[];
 }): Promise<ImagesApiResult> {
   const res = await fetch(`${OPENROUTER_BASE}/images`, {
@@ -152,25 +143,12 @@ export async function generateImage(params: {
     ? `${params.prompt} ${buildSpriteSheetSuffix(typeof params.spriteSheet === "string" ? params.spriteSheet : undefined)}`
     : params.prompt;
 
-  if (nativeTransparentSupport !== "no") {
-    const transparentResult = await requestImage({
-      prompt: `${basePrompt} ${TRANSPARENT_BG_SUFFIX}`,
-      aspectRatio,
-      quality,
-      background: "transparent",
-      referenceImages: params.referenceImages,
-    });
-    if (transparentResult.ok) {
-      nativeTransparentSupport = "yes";
-      const raw = `data:image/png;base64,${transparentResult.b64}`;
-      return params.spriteSheet ? realignSpriteFrames(raw, params.alignStrength ?? 0.8) : raw;
-    }
-    nativeTransparentSupport = "no";
-    console.warn(
-      `OpenRouter rejected background:"transparent" (status ${transparentResult.status}), falling back to chroma-key: ${transparentResult.body.slice(0, 300)}`
-    );
-  }
-
+  // We tried background:"transparent" first here for a while, but this
+  // account's OpenRouter routing for IMAGE_MODEL hard-rejects it every time
+  // (400: "Accepted: auto, opaque") — so on a cold serverless instance that
+  // was a full wasted image-generation round trip before falling back to
+  // the chroma-key path that actually works, roughly doubling latency. Go
+  // straight to chroma-key.
   const chromaResult = await requestImage({
     prompt: `${basePrompt} ${CHROMA_KEY_BG_SUFFIX}`,
     aspectRatio,
