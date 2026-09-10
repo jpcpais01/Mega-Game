@@ -6,9 +6,11 @@ import { SPRITE_FPS, SPRITE_GRID_COLS, SPRITE_GRID_ROWS, SPRITE_FRAME_COUNT } fr
 export default function SpriteAnimator({
   imageDataUrl,
   size = 280,
+  fps = SPRITE_FPS,
 }: {
   imageDataUrl: string;
   size?: number;
+  fps?: number;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -39,7 +41,7 @@ export default function SpriteAnimator({
       function draw(now: number) {
         if (cancelled) return;
         const elapsed = (now - startTime) / 1000;
-        const frame = Math.floor(elapsed * SPRITE_FPS) % SPRITE_FRAME_COUNT;
+        const frame = Math.floor(elapsed * fps) % SPRITE_FRAME_COUNT;
 
         if (frame !== lastFrame) {
           lastFrame = frame;
@@ -71,7 +73,7 @@ export default function SpriteAnimator({
       cancelled = true;
       if (raf) cancelAnimationFrame(raf);
     };
-  }, [imageDataUrl, size]);
+  }, [imageDataUrl, size, fps]);
 
   return <canvas ref={canvasRef} className="block" style={{ imageRendering: "pixelated" }} />;
 }

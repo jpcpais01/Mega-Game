@@ -1,6 +1,9 @@
 "use client";
 
+import { useState } from "react";
+import { SPRITE_FPS } from "@/lib/sprite";
 import { MonsterData } from "@/lib/types";
+import FpsDebugSlider from "./FpsDebugSlider";
 import SpriteAnimator from "./SpriteAnimator";
 
 export default function MonsterStage({
@@ -12,15 +15,19 @@ export default function MonsterStage({
   onLearnAbility: () => void;
   onSkip: () => void;
 }) {
+  const [fps, setFps] = useState(SPRITE_FPS);
+
   return (
     <div className="flex flex-col items-center gap-6 w-full pop-in">
       <div className="relative w-72 h-72 flex items-center justify-center">
         <div className="absolute bottom-2 w-40 h-8 rounded-full bg-[var(--accent)]/30 blur-xl" />
         <div className="absolute inset-0 rounded-full blur-3xl opacity-30 bg-[var(--accent-2)]" />
         <div className="relative">
-          <SpriteAnimator imageDataUrl={monster.imageDataUrl} size={280} />
+          <SpriteAnimator imageDataUrl={monster.imageDataUrl} size={280} fps={fps} />
         </div>
       </div>
+
+      <FpsDebugSlider fps={fps} onChange={setFps} />
 
       <div className="text-center">
         <h2 className="text-2xl font-bold">{monster.monsterName}</h2>

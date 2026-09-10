@@ -1,5 +1,5 @@
-export const SPRITE_GRID_COLS = 2;
-export const SPRITE_GRID_ROWS = 2;
+export const SPRITE_GRID_COLS = 3;
+export const SPRITE_GRID_ROWS = 3;
 export const SPRITE_FRAME_COUNT = SPRITE_GRID_COLS * SPRITE_GRID_ROWS;
 export const SPRITE_FPS = 8;
 
