@@ -4,11 +4,10 @@ import { SPRITE_GRID_COLS, SPRITE_GRID_ROWS } from "./sprite";
 
 const DATA_URL_RE = /^data:([^;]+);base64,([\s\S]*)$/;
 
-// Absolute safety ceiling on the FULL (pre-strength) computed shift, purely
-// to guard against a pathological centroid (e.g. one stray anti-aliased
-// pixel far from the subject) from throwing content wildly off-cell. This
-// is not the tuning knob — `strength` is.
-const MAX_SHIFT_FRACTION_OF_CELL = 0.45;
+// Ceiling on the FULL (pre-strength) computed shift, as a fraction of cell
+// size. At strength=1 (the idle default) this is the real limit on how far
+// a frame gets nudged — not just a rare-case safety net.
+const MAX_SHIFT_FRACTION_OF_CELL = 0.2;
 
 // Prompting the model to "align everything perfectly" only ever gets it
 // approximately right — the subject still drifts a few pixels between
