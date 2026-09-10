@@ -32,8 +32,18 @@ export type SlotState =
     }
   | { status: "done"; egg: EggData; monster: MonsterData; learnedAbility: LearnedAbility | null };
 
+// Diagnostic info for a slot's most recent animation attempt — kept
+// separate from SlotState's own `error` field, which drives blocking
+// retry UI. This is supplementary: the raw, unsliced video straight from
+// the model (so you can tell whether the model itself produced motion, or
+// our own extract/chroma-key/encode pipeline lost it) plus the last
+// animation error message, if any, even when the slot otherwise recovered
+// by falling back to a still image.
+export type AnimationDebugInfo = { videoUrl?: string; error?: string };
+
 type ForgeContextValue = {
   slots: SlotState[];
+  animationDebug: Record<number, AnimationDebugInfo>;
   startForge: (index: number, essenceIds: string[]) => void;
   retryForge: (index: number) => void;
   hatch: (index: number) => void;
@@ -66,7 +76,12 @@ async function postJson<T>(url: string, body: unknown, idToken?: string | null, 
   return data as T;
 }
 
-type SpriteVideoResult = { imageDataUrl: string; saved?: boolean; saveError?: string | null };
+type SpriteVideoResult = {
+  imageDataUrl: string;
+  debugVideoDataUrl?: string;
+  saved?: boolean;
+  saveError?: string | null;
+};
 
 async function pollSpriteVideo(
   jobId: string,
@@ -130,6 +145,7 @@ function isAbortError(err: unknown): boolean {
 export function ForgeProvider({ children }: { children: React.ReactNode }) {
   const { user, getIdToken } = useAuth();
   const [slots, setSlots] = useState<SlotState[]>(() => Array.from({ length: NEST_SIZE }, () => ({ status: "empty" })));
+  const [animationDebug, setAnimationDebug] = useState<Record<number, AnimationDebugInfo>>({});
   const abortControllersRef = useRef<Map<number, AbortController>>(new Map());
   // Auth state used inside long-running background chains via a ref, since
   // those chains outlive any single render and closures would otherwise
@@ -141,6 +157,10 @@ export function ForgeProvider({ children }: { children: React.ReactNode }) {
 
   const setSlot = useCallback((index: number, next: SlotState) => {
     setSlots((prev) => prev.map((s, i) => (i === index ? next : s)));
+  }, []);
+
+  const recordAnimationDebug = useCallback((index: number, info: AnimationDebugInfo) => {
+    setAnimationDebug((prev) => ({ ...prev, [index]: { ...prev[index], ...info } }));
   }, []);
 
   const newSignal = useCallback((index: number): AbortSignal => {
@@ -176,6 +196,7 @@ export function ForgeProvider({ children }: { children: React.ReactNode }) {
       try {
         const jobId = await submitSpriteVideo({ stillImageDataUrl, kind: "idle" }, signal);
         const result = await pollSpriteVideo(jobId, {}, undefined, signal);
+        recordAnimationDebug(index, { videoUrl: result.debugVideoDataUrl, error: undefined });
         setSlots((prev) =>
           prev.map((s, i) =>
             i === index && s.status === "egg-ready"
@@ -184,11 +205,14 @@ export function ForgeProvider({ children }: { children: React.ReactNode }) {
           )
         );
       } catch (err) {
-        if (!isAbortError(err)) console.error("egg animation error:", err);
+        if (!isAbortError(err)) {
+          console.error("egg animation error:", err);
+          recordAnimationDebug(index, { error: err instanceof Error ? err.message : "Egg animation failed" });
+        }
         // Keep whatever still image already landed — the animation upgrade just didn't happen.
       }
     },
-    []
+    [recordAnimationDebug]
   );
 
   const startForge = useCallback(
@@ -249,10 +273,12 @@ export function ForgeProvider({ children }: { children: React.ReactNode }) {
           try {
             const jobId = await submitSpriteVideo({ stillImageDataUrl: monster.stillImageDataUrl, kind: "idle" }, signal);
             const result = await pollSpriteVideo(jobId, {}, undefined, signal);
+            recordAnimationDebug(index, { videoUrl: result.debugVideoDataUrl, error: undefined });
             monster = { ...monster, imageDataUrl: result.imageDataUrl, animated: true };
           } catch (err) {
             if (isAbortError(err)) throw err;
             console.error("monster animation error:", err);
+            recordAnimationDebug(index, { error: err instanceof Error ? err.message : "Monster animation failed" });
             // Keep the still — hatching still completes, just unanimated.
           }
 
@@ -312,7 +338,7 @@ export function ForgeProvider({ children }: { children: React.ReactNode }) {
         }
       })();
     },
-    [slots, newSignal, setSlot]
+    [slots, newSignal, setSlot, recordAnimationDebug]
   );
 
   const chooseAbility = useCallback(
@@ -347,12 +373,14 @@ export function ForgeProvider({ children }: { children: React.ReactNode }) {
               ? { savedMonsterId, abilityName: ability.name, abilityDescription: ability.description }
               : {};
           const result = await pollSpriteVideo(jobId, extraParams, idToken, signal);
+          recordAnimationDebug(index, { videoUrl: result.debugVideoDataUrl, error: undefined });
 
           const learned: LearnedAbility = { ...ability, imageDataUrl: result.imageDataUrl };
           setSlot(index, { status: "done", egg, monster, learnedAbility: learned });
         } catch (err) {
           if (isAbortError(err)) return;
           console.error("ability error:", err);
+          recordAnimationDebug(index, { error: err instanceof Error ? err.message : "Ability animation failed" });
           setSlot(index, {
             status: "monster-ready",
             egg,
@@ -365,7 +393,7 @@ export function ForgeProvider({ children }: { children: React.ReactNode }) {
         }
       })();
     },
-    [slots, newSignal, setSlot]
+    [slots, newSignal, setSlot, recordAnimationDebug]
   );
 
   const skipAbility = useCallback(
@@ -432,7 +460,18 @@ export function ForgeProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <ForgeContext.Provider
-      value={{ slots, startForge, retryForge, hatch, chooseAbility, skipAbility, release, cancel, dismissError }}
+      value={{
+        slots,
+        animationDebug,
+        startForge,
+        retryForge,
+        hatch,
+        chooseAbility,
+        skipAbility,
+        release,
+        cancel,
+        dismissError,
+      }}
     >
       {children}
     </ForgeContext.Provider>

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import AbilityChoice from "@/components/AbilityChoice";
+import AnimationDebugPanel from "@/components/AnimationDebugPanel";
 import CookingSlotView from "@/components/CookingSlotView";
 import EggReveal from "@/components/EggReveal";
 import EssencePicker from "@/components/EssencePicker";
@@ -14,7 +15,8 @@ import GamePanel from "@/components/ui/GamePanel";
 import { useUnlockedEssences } from "@/lib/unlocked-essences";
 
 export default function Home() {
-  const { slots, startForge, retryForge, hatch, chooseAbility, skipAbility, release, cancel, dismissError } = useForge();
+  const { slots, animationDebug, startForge, retryForge, hatch, chooseAbility, skipAbility, release, cancel, dismissError } =
+    useForge();
   const { unlockedIds } = useUnlockedEssences();
   const [activeSlot, setActiveSlot] = useState<number | null>(null);
   const [choosingAbility, setChoosingAbility] = useState(false);
@@ -179,6 +181,8 @@ export default function Home() {
           }}
         />
       )}
+
+      {animationDebug[activeSlot] && <AnimationDebugPanel debug={animationDebug[activeSlot]} />}
     </div>
   );
 }

@@ -30,7 +30,13 @@ export async function GET(req: NextRequest) {
 
     if (job.status === "completed") {
       const videoBuffer = await downloadVideo(jobId);
+      // Sent back alongside the processed result so the client can show the
+      // untouched, unsliced source clip for debugging — did the video model
+      // actually generate motion, or did our own frame-extraction/chroma-key
+      // pipeline lose it? This settles that question at a glance.
+      const debugVideoDataUrl = `data:video/mp4;base64,${videoBuffer.toString("base64")}`;
       const frames = await extractFramesFromVideo(videoBuffer, VIDEO_SPRITE_FPS);
+      console.log(`sprite-video: extracted ${frames.length} frames from job ${jobId}`);
       const imageDataUrl = await framesToAnimatedWebp(frames, VIDEO_SPRITE_FPS);
 
       const savedMonsterId = req.nextUrl.searchParams.get("savedMonsterId");
@@ -58,7 +64,7 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      return NextResponse.json({ status: "completed", imageDataUrl, saved, saveError });
+      return NextResponse.json({ status: "completed", imageDataUrl, debugVideoDataUrl, saved, saveError });
     }
 
     if (job.status === "failed" || job.status === "cancelled" || job.status === "expired") {
