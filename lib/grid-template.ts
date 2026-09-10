@@ -55,9 +55,12 @@ function gridLinesSvg(): string {
   return fine + bold;
 }
 
-function dotsSvg(): string {
+function cellNumbersSvg(): string {
   return cellCenters()
-    .map(({ x, y }) => `<circle cx="${x}" cy="${y}" r="6" fill="black"/>`)
+    .map(
+      ({ x, y }, i) =>
+        `<text x="${x}" y="${y}" font-size="20" font-family="sans-serif" font-weight="bold" fill="black" text-anchor="middle" dominant-baseline="central">${i + 1}</text>`
+    )
     .join("");
 }
 
@@ -102,17 +105,18 @@ let cachedGridTemplate: Promise<string> | null = null;
 let cachedEggGridTemplate: Promise<string> | null = null;
 
 export function gridAlignmentTemplate(): Promise<string> {
-  if (!cachedGridTemplate) cachedGridTemplate = svgToDataUrl(gridLinesSvg() + dotsSvg());
+  if (!cachedGridTemplate) cachedGridTemplate = svgToDataUrl(gridLinesSvg() + cellNumbersSvg());
   return cachedGridTemplate;
 }
 
 export function eggGridAlignmentTemplate(): Promise<string> {
-  if (!cachedEggGridTemplate) cachedEggGridTemplate = svgToDataUrl(gridLinesSvg() + dotsSvg() + eggOutlinesSvg());
+  if (!cachedEggGridTemplate)
+    cachedEggGridTemplate = svgToDataUrl(gridLinesSvg() + eggOutlinesSvg() + cellNumbersSvg());
   return cachedEggGridTemplate;
 }
 
 export const GRID_TEMPLATE_INSTRUCTION =
-  "One of the attached reference images is a plain alignment TEMPLATE, not a design reference — a 3x3 grid (bold lines mark each frame's boundary) with a thin fine ruler sub-grid inside every cell and a small black dot marking the exact center. Use it purely as an invisible layout guide: render the subject at the exact same scale in every cell, perfectly centered on that cell's dot, using the fine ruler lines to judge exact size and position so every frame lines up identically. Do NOT copy, reproduce, or draw ANY of the template's bold lines, fine ruler lines, dots, or white background in your output — the final image must contain only the subject itself with zero visible guide marks.";
+  "One of the attached reference images is a plain alignment TEMPLATE, not a design reference — a 3x3 grid (bold lines mark each frame's boundary) with a thin fine ruler sub-grid inside every cell and a small black frame number centered in each cell. Use it purely as an invisible layout guide: render the subject at the exact same scale in every cell, perfectly centered on that cell's number, using the fine ruler lines to judge exact size and position so every frame lines up identically, and use the numbers to confirm you are placing each pose in its correct frame order. Do NOT copy, reproduce, or draw ANY of the template's bold lines, fine ruler lines, numbers, or white background in your output — the final image must contain only the subject itself with zero visible guide marks.";
 
 export const EGG_GRID_TEMPLATE_INSTRUCTION =
-  "The attached reference image is a plain alignment TEMPLATE, not a design reference — a 3x3 grid (bold lines mark each frame's boundary) with a thin fine ruler sub-grid inside every cell, a small black dot at the exact center, and a thin egg-shaped outline marking the exact size and silhouette for each cell. Use it purely as an invisible layout guide: draw your fully designed, fully styled egg so its silhouette matches that thin outline's position and size exactly in every cell, using the fine ruler lines to judge exact placement. Do NOT copy, reproduce, or draw ANY of the template's bold lines, fine ruler lines, dots, thin egg outline, or white background in your output — the final image must contain only your fully rendered egg with zero visible guide marks.";
+  "The attached reference image is a plain alignment TEMPLATE, not a design reference — a 3x3 grid (bold lines mark each frame's boundary) with a thin fine ruler sub-grid inside every cell, a thin egg-shaped outline marking the exact size and silhouette for each cell, and a small black frame number centered in each cell. Use it purely as an invisible layout guide: draw your fully designed, fully styled egg so its silhouette matches that thin outline's position and size exactly in every cell, using the fine ruler lines to judge exact placement and the numbers to confirm correct frame order. Do NOT copy, reproduce, or draw ANY of the template's bold lines, fine ruler lines, thin egg outline, numbers, or white background in your output — the final image must contain only your fully rendered egg with zero visible guide marks.";
