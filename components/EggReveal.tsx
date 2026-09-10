@@ -25,7 +25,7 @@ export default function EggReveal({
         <div className="absolute inset-0 rounded-full blur-3xl opacity-40 bg-[var(--accent)]" />
         {egg.imageDataUrl ? (
           <div className="relative drop-shadow-[0_20px_40px_rgba(0,0,0,0.5)]">
-            <SpriteAnimator imageDataUrl={egg.imageDataUrl} size={224} animated={egg.animated} />
+            <SpriteAnimator imageDataUrl={egg.imageDataUrl} size={224} />
           </div>
         ) : imageFailed ? (
           <div className="relative text-7xl float opacity-70">🥚</div>

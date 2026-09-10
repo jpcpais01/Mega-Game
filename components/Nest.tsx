@@ -67,7 +67,7 @@ function SlotTile({ index, slot, onTap }: { index: number; slot: SlotState; onTa
       >
         <PanelCorners />
         {slot.egg.imageDataUrl ? (
-          <SpriteAnimator imageDataUrl={slot.egg.imageDataUrl} size={64} animated={slot.egg.animated} />
+          <SpriteAnimator imageDataUrl={slot.egg.imageDataUrl} size={64} />
         ) : (
           <div className="w-3/5 h-3/5 rounded-full shimmer" />
         )}
@@ -82,7 +82,7 @@ function SlotTile({ index, slot, onTap }: { index: number; slot: SlotState; onTa
         className="game-panel relative rounded-2xl aspect-square flex items-center justify-center overflow-hidden active:scale-95 transition-transform opacity-70"
       >
         <PanelCorners />
-        <SpriteAnimator imageDataUrl={slot.monster.imageDataUrl} size={64} animated={slot.monster.animated} />
+        <SpriteAnimator imageDataUrl={slot.monster.imageDataUrl} size={64} />
         <ElapsedBadge startedAt={slot.startedAt} />
       </button>
     );
@@ -97,7 +97,7 @@ function SlotTile({ index, slot, onTap }: { index: number; slot: SlotState; onTa
       style={{ boxShadow: "0 0 16px -4px var(--accent)" }}
     >
       <PanelCorners />
-      <SpriteAnimator imageDataUrl={monster.imageDataUrl} size={64} animated={monster.animated} />
+      <SpriteAnimator imageDataUrl={monster.imageDataUrl} size={64} />
     </button>
   );
 }

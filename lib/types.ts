@@ -12,8 +12,8 @@ export type EggDetails = {
 };
 
 export type EggData = EggDetails & {
-  imageDataUrl: string | null; // null while generating; the still, then the animated sheet once its video finishes
-  animated: boolean; // false while imageDataUrl is the still (SpriteAnimator must not grid-slice it); true once the idle loop replaced it
+  imageDataUrl: string | null; // null while generating; the still PNG, then the animated WebP once its video finishes
+  animated: boolean; // false while imageDataUrl is the still; true once the real looping animation replaced it
 };
 
 export type Ability = {
@@ -22,19 +22,19 @@ export type Ability = {
 };
 
 export type LearnedAbility = Ability & {
-  imageDataUrl: string; // sprite sheet of the monster performing this ability — always animated by the time this exists
+  imageDataUrl: string; // animated WebP of the monster performing this ability — always animated by the time this exists
 };
 
 export type MonsterData = {
   monsterName: string;
   lore: string;
   imagePrompt: string;
-  imageDataUrl: string; // the still at first, then the animated idle sprite sheet once its video finishes
+  imageDataUrl: string; // the still PNG at first, then the animated idle WebP once its video finishes
   animated: boolean; // same meaning as EggData.animated — a player can commit the monster to a Nest slot before its video finishes
   // A clean single-pose reference image that never changes after hatch —
   // used as the video-generation reference for later ability animations,
-  // since imageDataUrl becomes a busy multi-frame sheet once idle animation
-  // finishes and isn't a usable single-character reference anymore.
+  // since imageDataUrl becomes the animated idle loop once that finishes
+  // and isn't a usable single-character reference anymore.
   stillImageDataUrl: string;
   abilities: Ability[]; // exactly 4 options to choose a first ability from
 };
@@ -52,7 +52,7 @@ export type SavedMonster = {
   monsterName: string;
   monsterLore: string;
   monsterImageDataUrl: string;
-  monsterAnimated: boolean; // whether monsterImageDataUrl is a grid-sliceable sheet or a plain still
+  monsterAnimated: boolean; // whether monsterImageDataUrl is the animated WebP or still a plain still
   abilities: Ability[];
   learnedAbility: LearnedAbility | null;
   createdAt: number; // epoch ms

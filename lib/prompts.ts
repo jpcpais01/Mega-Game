@@ -21,7 +21,7 @@ Art direction you MUST bake into the "imagePrompt" field: ${ART_STYLE}
 The egg should visually blend the color palettes, textures, and symbolism of the given essences (e.g. cracks of
 glowing lava, veins of lightning, frost crystals, mossy growth) onto a single ovoid egg shape with an interesting
 silhouette (bumps, spikes, shell patterns are welcome). Do not describe any creature, only the egg itself. This
-egg will be rendered as a looping idle-animation sprite sheet, so describe it in a state that suits a gentle
+egg will be rendered as a looping idle animation, so describe it in a state that suits a gentle
 looping motion — e.g. a soft inner glow that pulses, faint magical energy crackling over the shell, a slight
 rocking wobble, or wisps of essence drifting off it. Do not describe it cracking open or hatching.
 

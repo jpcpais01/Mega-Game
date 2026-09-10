@@ -88,8 +88,8 @@ export async function POST(req: NextRequest) {
 
     // Only the still reference image is generated here — the client
     // submits it to the video-generation pipeline separately for the
-    // actual animated idle sprite sheet, and keeps this still around to
-    // reuse as the reference for any later ability animation.
+    // actual animated idle loop, and keeps this still around to reuse as
+    // the reference for any later ability animation.
     const stillImageDataUrl = await generateImage({ prompt: monsterJson.imagePrompt });
 
     const monster: MonsterData = {

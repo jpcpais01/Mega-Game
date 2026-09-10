@@ -25,36 +25,37 @@ monster idle on screen as looping pixel-art sprite animations.
    name/lore/stats/essences to get a monster name, lore, and an image prompt (explicitly excluding any
    egg/shell — full-body monster only), renders its still reference, then waits for its idle video too — so the
    slot's `"hatching"` status genuinely covers the whole thing, not just the text step.
-5. **Sprite sheets via video** — every animated sprite (egg idle, monster idle, and abilities) is built from a
-   short AI-generated *video*, not a single multi-frame image. First a plain still reference image is generated
-   (`generateImage()` in `lib/openrouter.ts` — no grid, just the subject on a flat magenta backdrop). That still
-   is submitted to OpenRouter's Video API (`minimax/hailuo-3-max`, `lib/video-api.ts`) as the first frame (the
-   model only accepts a single keyframe — sending both first and last frame is a 400), with a prompt asking for a
-   calm, seamlessly-looping, 10fps-feeling pixel-art animation on that same flat magenta background, ending on
-   the same pose it started on. Video generation routinely takes well over a minute, so the server never blocks
-   on it: `POST /api/sprite-video/submit` only submits the job and returns its id; the client polls
-   `GET /api/sprite-video/status?jobId=...` (`components/ForgeProvider.tsx`) until it's done. Once complete, that status route
-   downloads the finished video, extracts frames at 10fps with a bundled `ffmpeg` binary (`ffmpeg-static`,
-   `lib/video-frames.ts`), chroma-keys each frame individually (`lib/chroma-key.ts` — the video's background can
-   drift slightly frame to frame, unlike a single generated image, so keying happens per-frame rather than once
-   for a whole sheet), and packs them into one fixed 10×5-cell sprite sheet (`lib/video-sprite-sheet.ts`).
-   `components/SpriteAnimator.tsx` plays it back the same way as before — slice the sheet into its cells and
-   step through them on a canvas with `imageSmoothingEnabled = false` for crisp pixel edges.
+5. **Real animated WebPs via video, never a sprite sheet** — every animated egg/monster/ability image is built
+   from a short AI-generated *video*, then reassembled into one genuine animated image file. First a plain still
+   reference image is generated (`generateImage()` in `lib/openrouter.ts` — just the subject on a flat magenta
+   backdrop). That still is submitted to OpenRouter's Video API (`minimax/hailuo-3-max`, `lib/video-api.ts`) as
+   the first frame (the model only accepts a single keyframe — sending both first and last frame is a 400), with
+   a prompt asking for a calm, seamlessly-looping, 10fps-feeling pixel-art animation on that same flat magenta
+   background, ending on the same pose it started on. Video generation routinely takes well over a minute, so
+   the server never blocks on it: `POST /api/sprite-video/submit` only submits the job and returns its id; the
+   client polls `GET /api/sprite-video/status?jobId=...` (`components/ForgeProvider.tsx`) until it's done. Once
+   complete, that status route downloads the finished video, extracts frames at 10fps with a bundled `ffmpeg`
+   binary (`ffmpeg-static`, `lib/video-frames.ts`), chroma-keys each frame individually (`lib/chroma-key.ts` —
+   the video's background can drift slightly frame to frame, unlike a single generated image, so keying happens
+   per-frame), then encodes all of them as one animated, transparent, infinitely-looping WebP
+   (`lib/animated-image.ts` — `sharp`'s raw-multi-page input, `{ loop: 0 }`). `components/SpriteAnimator.tsx` is
+   nothing more than a plain `<img>` — the browser decodes and loops the WebP natively forever, no canvas, no
+   frame-stepping JS, no grid to slice or get out of sync with.
    Because the still shows immediately while its video renders in the background, an egg/monster's
-   `imageDataUrl` starts out as the plain still and gets swapped for the animated sheet once the video finishes
-   — `animated` on `EggData`/`MonsterData` tracks which one it currently is (a player can hit "Skip" on
-   `MonsterStage` and commit a monster to a Nest slot before its animation is ready), and `SpriteAnimator` is
-   told `animated={false}` so it renders the still as-is instead of grid-slicing it.
+   `imageDataUrl` starts out as the plain still PNG and gets swapped for the animated WebP once the video
+   finishes — `animated` on `EggData`/`MonsterData` just tracks which one it currently is, for save/UI-gating
+   logic (a player can hit "Skip" on `MonsterStage` and commit a monster to a Nest slot before its animation is
+   ready); `SpriteAnimator` itself doesn't need to know either way, since both render the same way.
 6. **First ability** — the Monster Designer LLM also invents 4 candidate abilities alongside the monster
    (`lib/prompts.ts`, validated/backfilled in `app/api/hatch/route.ts`). `components/AbilityChoice.tsx` shows
    them as cards; picking one submits the monster's saved *still* reference (`MonsterData.stillImageDataUrl` —
    set once at hatch and never overwritten by the idle animation, so it stays a clean single-pose image-to-image
-   reference) to the same sprite-video pipeline with a prompt describing the ability's action. If the monster
-   was already saved to the player's collection, the status-poll call also carries that saved id so the
-   finished sprite sheet gets persisted server-side the moment it's ready, in the very request that generates
-   it — sending a several-MB finished sprite sheet back to the server in a *second* request once blew past
-   Vercel's request body size limit. `components/SlotDetail.tsx` shows the result once the slot reaches its
-   final `"done"` state.
+   reference) to the same video pipeline with a prompt describing the ability's action. If the monster was
+   already saved to the player's collection, the status-poll call also carries that saved id so the finished
+   animated WebP gets persisted server-side the moment it's ready, in the very request that generates it —
+   sending a several-MB finished animation back to the server in a *second* request once blew past Vercel's
+   request body size limit. `components/SlotDetail.tsx` shows the result once the slot reaches its final
+   `"done"` state.
 7. **Generation survives navigation** — `components/ForgeProvider.tsx` is a React Context mounted once at the
    root layout (`app/layout.tsx`), above the page component Next.js unmounts on every route change. It owns a
    `SlotState` per Nest slot (`empty | forging | forge-failed | egg-ready | hatching | monster-ready |
@@ -84,12 +85,15 @@ setup steps) since nothing but our own verified server code ever reaches them �
 subtly wrong.
 
 **No Firebase Storage** — new Firebase projects need the paid Blaze plan to use Storage at all, so images are
-stored directly in the Firestore document instead of a separate bucket. A full-resolution 1024×1024 sprite
-sheet is too big for that (Firestore caps a whole document at 1 MiB, and a monster doc holds up to three
-images — egg, monster, learned ability), so `lib/image-resize.ts`'s `shrinkDataUrlForFirestore()` downscales
-each one (nearest-neighbor, so hard pixel edges stay crisp instead of blurring) and re-encodes it as a
-palette-quantized PNG before saving — pixel art compresses extremely well, so this comfortably fits all three
-images plus metadata in one document. This only affects the *persisted* copy in `/collection`; the live
+stored directly in the Firestore document instead of a separate bucket. A full-resolution animated WebP is too
+big for that (Firestore caps a whole document at 1 MiB, and a monster doc holds up to three images — egg,
+monster, learned ability), so `lib/image-resize.ts`'s `shrinkDataUrlForFirestore()` downscales each one before
+saving — nearest-neighbor, so hard pixel edges stay crisp instead of blurring. It branches on whether the
+source is animated (checked via `sharp(buffer, { animated: true }).metadata().pages`, not just its declared
+mime type): an animated WebP is re-encoded staying animated (`sharp(buffer, { animated: true }).resize(...)`
+keeps every page and its delay), while a plain still is re-encoded as a palette-quantized PNG. Re-encoding an
+animated source through the *non*-animated path would silently flatten it to its first frame only — that's a
+real bug this pipeline had to avoid. This only affects the *persisted* copy in `/collection`; the live
 forge/hatch/ability flow always displays the full-resolution image the model generated.
 
 If `NEXT_PUBLIC_FIREBASE_*` env vars aren't set, the app doesn't crash — `AuthProvider` detects this
@@ -101,12 +105,11 @@ config at all.
 
 Neither the still-image model nor the video model reliably honors a real transparent-background request, so
 `generateImage()` always asks for a flat, unmistakable solid magenta backdrop and strips it to real alpha
-afterward server-side with `sharp`: `lib/chroma-key.ts` for stills (color-distance keying with spill
-suppression at partially-keyed edge pixels, so a thinned-but-still-magenta-tinted edge pixel doesn't show up as
-a visible fringe), and that same technique applied per-frame for video-sourced sprite sheets
-(`lib/video-sprite-sheet.ts`) — the video's backdrop can drift slightly frame to frame in a way a single
-generated image doesn't, so keying once per frame instead of once for the whole sheet is what actually keeps it
-clean.
+afterward server-side with `sharp`: `lib/chroma-key.ts` (color-distance keying with spill suppression at
+partially-keyed edge pixels, so a thinned-but-still-magenta-tinted edge pixel doesn't show up as a visible
+fringe). For stills it runs once; for video-sourced animations it runs per extracted frame
+(`lib/animated-image.ts`) — the video's backdrop can drift slightly frame to frame in a way a single generated
+image doesn't, so keying once per frame is what actually keeps it clean.
 
 All LLM and image calls happen server-side in the API routes so the OpenRouter key is never exposed to the client.
 
@@ -176,14 +179,14 @@ setup** below for the full step-by-step to enable sign-in and the collection pag
 ## Notes / follow-ups
 
 - Essence definitions live in `lib/essences.ts` — add/edit essences there.
-- Prompts for all LLM roles live in `lib/prompts.ts`. Background and sprite-sheet framing instructions are
+- Prompts for all LLM roles live in `lib/prompts.ts`. Background and animation-framing instructions are
   deliberately kept OUT of the LLM-authored `imagePrompt` and appended programmatically in `lib/openrouter.ts` —
-  that's what lets the background strategy and sprite-sheet toggle change without a second text-LLM call.
+  that's what lets the background strategy change without a second text-LLM call.
 - The OpenRouter request/response plumbing is isolated in `lib/openrouter.ts` so swapping models later is a
   one-line change.
-- Sprite sheets are currently a single fixed camera angle (front-left isometric, `ART_STYLE` in
-  `lib/prompts.ts`) and a fixed 5-second/10fps/10×5-grid animation length (`lib/sprite.ts`) — a longer or
-  shorter animation means changing those constants together with `lib/video-sprite-sheet.ts`'s per-cell size.
+- Animations are currently a single fixed camera angle (front-left isometric, `ART_STYLE` in `lib/prompts.ts`)
+  and a fixed 5-second/10fps length (`lib/sprite.ts`) — a longer or shorter animation means changing those
+  constants together with `lib/animated-image.ts`'s per-frame size.
 - Video generation is slow (often 30s–3min+) and costs meaningfully more per generation than the still-image
   model alone — expect forging a monster (egg + monster + optionally an ability, each its own video) to take
   noticeably longer than a single-image-only pipeline would.
