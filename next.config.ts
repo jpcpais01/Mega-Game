@@ -4,12 +4,14 @@ const nextConfig: NextConfig = {
   images: {
     remotePatterns: [{ hostname: "lh3.googleusercontent.com" }],
   },
-  // ffmpeg-static resolves its binary path at runtime (not a static
-  // require()), so Next's build-time file tracing can't auto-detect it —
-  // without this, the route works locally but is missing the binary once
-  // deployed as a serverless function.
+  // ffmpeg-static's binary isn't a static require() target, so Next's
+  // build-time file tracing can't auto-detect it — without this, the route
+  // works locally but 404s/ENOENTs on the binary once deployed as a
+  // serverless function. The literal file path (not a glob over the whole
+  // package) matches Vercel's own known-working vercel-labs/ffmpeg-on-vercel
+  // example; lib/video-frames.ts spawns this exact path too.
   outputFileTracingIncludes: {
-    "/api/sprite-video/status": ["./node_modules/ffmpeg-static/**/*"],
+    "/api/sprite-video/status": ["./node_modules/ffmpeg-static/ffmpeg"],
   },
 };
 

@@ -4,9 +4,23 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import ffmpegPath from "ffmpeg-static";
 
 const execFileAsync = promisify(execFile);
+
+// ffmpeg-static normally resolves its own binary path via `__dirname`
+// inside the package at import time — but that path does not survive
+// Next.js's output-file tracing on Vercel intact (it resolves to a bogus
+// location and every spawn ENOENTs). This is a known issue with the
+// package on Vercel; the documented workaround (also used by Vercel's own
+// vercel-labs/ffmpeg-on-vercel example) is to ignore the package's
+// resolved path entirely and spawn the binary via a path relative to the
+// process's cwd instead, which both `next dev` and Vercel's Node.js
+// functions set to the project/function root where node_modules actually
+// lives.
+function resolveFfmpegBinaryPath(): string {
+  const name = process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg";
+  return path.join(process.cwd(), "node_modules", "ffmpeg-static", name);
+}
 
 // Vercel's Node.js functions give /tmp as the only writable directory —
 // os.tmpdir() resolves there in that environment and to the regular system
@@ -21,17 +35,15 @@ async function withTempDir<T>(fn: (dir: string) => Promise<T>): Promise<T> {
 }
 
 // Extracts frames from a video buffer at a fixed frame rate, returning each
-// frame as a PNG buffer in playback order. ffmpeg-static resolves the path
-// to a real ffmpeg binary at runtime (not a static require(), so Next.js's
-// build-time file tracing can't auto-detect it — next.config.ts explicitly
-// includes it for the routes that call this).
+// frame as a PNG buffer in playback order. next.config.ts's
+// outputFileTracingIncludes explicitly bundles the ffmpeg binary for the
+// routes that call this.
 export async function extractFramesFromVideo(videoBuffer: Buffer, fps: number): Promise<Buffer[]> {
-  // Narrowed into a local const: the null-check above doesn't survive into
-  // the nested closure below since ffmpegPath is an imported binding, not a
-  // local variable TypeScript can track control flow on across that boundary.
-  const ffmpeg = ffmpegPath;
-  if (!ffmpeg) {
-    throw new Error("ffmpeg-static has no binary for this platform/architecture");
+  const ffmpeg = resolveFfmpegBinaryPath();
+  try {
+    await fs.access(ffmpeg);
+  } catch {
+    throw new Error(`ffmpeg binary not found at ${ffmpeg} — check outputFileTracingIncludes in next.config.ts`);
   }
 
   return withTempDir(async (dir) => {
