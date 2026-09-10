@@ -46,10 +46,18 @@ export function useUnlockedEssences() {
         const res = await fetch("/api/essences/unlocked", {
           headers: idToken ? { Authorization: `Bearer ${idToken}` } : {},
         });
-        if (!res.ok) throw new Error("Failed to load unlocked essences");
+        if (!res.ok) {
+          const data = await res.json().catch(() => null);
+          throw new Error(
+            (data as { error?: string } | null)?.error ?? `Failed to load unlocked essences (status ${res.status})`
+          );
+        }
         const data = await res.json();
         if (!cancelled) setUnlockedIds(Array.isArray(data.unlockedEssenceIds) ? data.unlockedEssenceIds : []);
-      } catch {
+      } catch (err) {
+        // Falls back to the local guest list silently — this is the initial
+        // load, not a user-triggered action — but still log the real cause.
+        console.error("useUnlockedEssences load error:", err instanceof Error ? err.message : err);
         if (!cancelled) setUnlockedIds(readLocal());
       } finally {
         if (!cancelled) setLoading(false);
@@ -81,7 +89,13 @@ export function useUnlockedEssences() {
           },
           body: JSON.stringify({ essenceId }),
         });
-        if (!res.ok) throw new Error("Failed to claim essence");
+        if (!res.ok) {
+          const data = await res.json().catch(() => null);
+          const serverMessage = (data as { error?: string } | null)?.error;
+          throw new Error(
+            serverMessage ? `${serverMessage} (status ${res.status})` : `Failed to claim essence (status ${res.status})`
+          );
+        }
       } catch (err) {
         setUnlockedIds((prev) => prev.filter((id) => id !== essenceId));
         throw err instanceof Error ? err : new Error("Failed to claim essence");
