@@ -135,6 +135,14 @@ export async function generateImage(params: {
   quality?: string;
   /** true = default idle-loop sprite sheet; a string = custom motion description (e.g. an ability action) */
   spriteSheet?: boolean | string;
+  /**
+   * How hard to snap each frame's mass center onto its cell center (0-1,
+   * default 0.8). Idle loops have no intentional center-of-mass movement,
+   * so a high strength is safe; an ability/attack animation intentionally
+   * shifts mass, so pass something lower (e.g. 0.5) or full alignment will
+   * cancel out the real motion along with the drift.
+   */
+  alignStrength?: number;
   /** Image-to-image reference(s), e.g. an existing monster sprite sheet to keep the design consistent */
   referenceImages?: string[];
 }): Promise<string> {
@@ -155,7 +163,7 @@ export async function generateImage(params: {
     if (transparentResult.ok) {
       nativeTransparentSupport = "yes";
       const raw = `data:image/png;base64,${transparentResult.b64}`;
-      return params.spriteSheet ? realignSpriteFrames(raw) : raw;
+      return params.spriteSheet ? realignSpriteFrames(raw, params.alignStrength ?? 0.8) : raw;
     }
     nativeTransparentSupport = "no";
     console.warn(
@@ -177,5 +185,5 @@ export async function generateImage(params: {
   const rawBuffer = Buffer.from(chromaResult.b64, "base64");
   const transparentBuffer = await chromaKeyToTransparentPng(rawBuffer);
   const transparentDataUrl = `data:image/png;base64,${transparentBuffer.toString("base64")}`;
-  return params.spriteSheet ? realignSpriteFrames(transparentDataUrl) : transparentDataUrl;
+  return params.spriteSheet ? realignSpriteFrames(transparentDataUrl, params.alignStrength ?? 0.8) : transparentDataUrl;
 }

@@ -32,6 +32,10 @@ export async function POST(req: NextRequest) {
       prompt: `${abilityAnimationPrompt({ monsterName, abilityName, abilityDescription })} ${GRID_TEMPLATE_INSTRUCTION}`,
       referenceImages: [monsterImageDataUrl, template],
       spriteSheet: abilityAnimationMotion({ abilityName, abilityDescription }),
+      // Attacks intentionally shift the character's mass (a lunge, an
+      // outstretched arm) — full alignment would cancel that motion out
+      // along with the drift, so damp the correction instead of snapping it.
+      alignStrength: 0.5,
     });
 
     return NextResponse.json({ imageDataUrl });

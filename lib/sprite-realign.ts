@@ -4,18 +4,34 @@ import { SPRITE_GRID_COLS, SPRITE_GRID_ROWS } from "./sprite";
 
 const DATA_URL_RE = /^data:([^;]+);base64,([\s\S]*)$/;
 
+// Absolute safety ceiling on the FULL (pre-strength) computed shift, purely
+// to guard against a pathological centroid (e.g. one stray anti-aliased
+// pixel far from the subject) from throwing content wildly off-cell. This
+// is not the tuning knob — `strength` is.
+const MAX_SHIFT_FRACTION_OF_CELL = 0.45;
+
 // Prompting the model to "align everything perfectly" only ever gets it
 // approximately right — the subject still drifts a few pixels between
 // cells. This corrects the actual pixel data instead of asking nicely: for
 // each frame, compute the alpha-weighted centroid ("mass center") of its
-// non-transparent pixels, then shift that frame's content so the centroid
-// lands on the cell's exact geometric center. Every frame ends up centered
-// on the same point regardless of how the model drew it.
-export async function realignSpriteFrames(dataUrl: string): Promise<string> {
+// non-transparent pixels, then shift that frame's content toward the cell's
+// exact geometric center.
+//
+// `strength` (0-1) controls how much of that correction to actually apply:
+// 0 leaves frames untouched, 1 snaps every centroid exactly onto the cell
+// center. An idle animation isn't supposed to have any real center-of-mass
+// movement, so it can use a strength close to 1 — any centroid drift there
+// is pure model inconsistency. An attack/ability animation, though,
+// *intentionally* shifts mass (a lunge, an outstretched arm), so full
+// alignment there would cancel out the real motion along with the
+// unwanted jitter — a lower strength (e.g. 0.5) damps drift while letting
+// the intended movement mostly through.
+export async function realignSpriteFrames(dataUrl: string, strength: number = 1): Promise<string> {
   const match = dataUrl.match(DATA_URL_RE);
   if (!match) {
     throw new Error("realignSpriteFrames: input is not a data URL");
   }
+  const clampedStrength = Math.max(0, Math.min(1, strength));
 
   const { data, info } = await sharp(Buffer.from(match[2], "base64"))
     .ensureAlpha()
@@ -24,7 +40,7 @@ export async function realignSpriteFrames(dataUrl: string): Promise<string> {
   const { width, height, channels } = info;
   const cellW = width / SPRITE_GRID_COLS;
   const cellH = height / SPRITE_GRID_ROWS;
-  const maxShift = Math.min(cellW, cellH) * 0.2; // safety clamp against pathological frames
+  const maxFullShift = Math.min(cellW, cellH) * MAX_SHIFT_FRACTION_OF_CELL;
 
   const out = Buffer.alloc(data.length); // zeroed = fully transparent everywhere by default
 
@@ -54,10 +70,14 @@ export async function realignSpriteFrames(dataUrl: string): Promise<string> {
       const centroidY = sumY / sumAlpha;
       const targetX = x0 + (x1 - x0) / 2;
       const targetY = y0 + (y1 - y0) / 2;
-      let shiftX = Math.round(targetX - centroidX);
-      let shiftY = Math.round(targetY - centroidY);
-      shiftX = Math.max(-maxShift, Math.min(maxShift, shiftX));
-      shiftY = Math.max(-maxShift, Math.min(maxShift, shiftY));
+
+      let fullShiftX = targetX - centroidX;
+      let fullShiftY = targetY - centroidY;
+      fullShiftX = Math.max(-maxFullShift, Math.min(maxFullShift, fullShiftX));
+      fullShiftY = Math.max(-maxFullShift, Math.min(maxFullShift, fullShiftY));
+
+      const shiftX = Math.round(fullShiftX * clampedStrength);
+      const shiftY = Math.round(fullShiftY * clampedStrength);
 
       for (let y = y0; y < y1; y++) {
         const srcY = y - shiftY;
