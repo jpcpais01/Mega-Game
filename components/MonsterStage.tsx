@@ -9,10 +9,14 @@ export default function MonsterStage({
   monster,
   onLearnAbility,
   onSkip,
+  saved,
+  saveError,
 }: {
   monster: MonsterData;
   onLearnAbility: () => void;
   onSkip: () => void;
+  saved?: boolean;
+  saveError?: string | null;
 }) {
   return (
     <div className="flex flex-col items-center gap-6 w-full pop-in">
@@ -29,6 +33,9 @@ export default function MonsterStage({
         <h2 className="font-display text-xl text-[var(--gold)]">{monster.monsterName}</h2>
         <p className="text-sm text-[var(--text-dim)] mt-1 max-w-xs mx-auto">{monster.lore}</p>
       </div>
+
+      {saved && <p className="text-xs text-[var(--accent-2)] -mt-2">✓ Saved to your collection</p>}
+      {saveError && <p className="text-xs text-[var(--danger)] -mt-2 max-w-xs text-center">⚠ Couldn&apos;t save: {saveError}</p>}
 
       <GameButton onClick={onLearnAbility}>Learn First Ability</GameButton>
       <button onClick={onSkip} className="text-xs text-[var(--text-dim)] underline underline-offset-2 -mt-3">

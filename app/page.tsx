@@ -48,6 +48,8 @@ export default function Home() {
   const [eggImageFailed, setEggImageFailed] = useState(false);
   const [monster, setMonster] = useState<MonsterData | null>(null);
   const [learnedAbility, setLearnedAbility] = useState<LearnedAbility | null>(null);
+  const [monsterSaved, setMonsterSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [abilitySaved, setAbilitySaved] = useState(false);
   const [loading, setLoading] = useState(false);
   const [statusMessages, setStatusMessages] = useState<string[]>([]);
@@ -77,15 +79,23 @@ export default function Home() {
   // The moment we have a hatched monster AND the egg's own artwork, auto-save
   // the whole thing to the signed-in user's collection in the background —
   // no explicit "save" button needed. Guests just skip this silently.
+  //
+  // The user check must come BEFORE the autoSaveStartedRef lock: Firebase
+  // auth state resolves asynchronously, so this effect can fire once while
+  // `user` is still null (not yet hydrated) even for a signed-in visitor.
+  // Locking the ref first meant that single premature run permanently
+  // blocked every later retry, so the save silently never happened even
+  // though the user really was signed in — exactly the "monster never
+  // shows up in the Vault, no error either" symptom.
   useEffect(() => {
     if (autoSaveStartedRef.current) return;
     if (!monster || !egg?.imageDataUrl) return;
+    if (!user) return;
     autoSaveStartedRef.current = true;
 
     const promise = (async (): Promise<string | null> => {
-      if (!user) return null;
       const idToken = await getIdToken();
-      if (!idToken) return null;
+      if (!idToken) throw new Error("Couldn't get a sign-in token to save this monster");
       const saved = await postJson<{ id: string }>(
         "/api/monsters",
         {
@@ -104,7 +114,12 @@ export default function Home() {
       return saved.id;
     })();
     savedMonsterIdPromiseRef.current = promise;
-    promise.catch((err) => console.error("auto-save error:", err));
+    promise
+      .then(() => setMonsterSaved(true))
+      .catch((err) => {
+        console.error("auto-save error:", err);
+        setSaveError(err instanceof Error ? err.message : "Failed to save this monster to your collection");
+      });
   }, [monster, egg, user, getIdToken]);
 
   function beginMonsterGeneration(details: EggDetails) {
@@ -137,6 +152,8 @@ export default function Home() {
     setEggImageFailed(false);
     setMonster(null);
     setLearnedAbility(null);
+    setMonsterSaved(false);
+    setSaveError(null);
     setAbilitySaved(false);
     monsterPromiseRef.current = null;
     savedMonsterIdPromiseRef.current = null;
@@ -184,6 +201,8 @@ export default function Home() {
     setEggImageFailed(false);
     setMonster(null);
     setLearnedAbility(null);
+    setMonsterSaved(false);
+    setSaveError(null);
     setAbilitySaved(false);
     monsterPromiseRef.current = null;
     savedMonsterIdPromiseRef.current = null;
@@ -242,17 +261,27 @@ export default function Home() {
       setLearnedAbility(learned);
       setStage("learned");
 
-      const savedId = await savedMonsterIdPromiseRef.current?.catch(() => null);
-      if (savedId) {
-        const idToken = await getIdToken();
-        if (idToken) {
-          await postJson(
-            `/api/monsters/${savedId}/ability`,
-            { abilityName: ability.name, abilityDescription: ability.description, animationImageDataUrl: imageDataUrl },
-            idToken
-          );
-          setAbilitySaved(true);
+      // Isolated from the outer try/catch on purpose: the ability animation
+      // itself already succeeded and the "learned" stage is already showing
+      // it, so a failure saving that update to the Vault shouldn't yank the
+      // user back to the generic error screen — just leave the "saved"
+      // checkmark off and log it.
+      try {
+        const savedId = await savedMonsterIdPromiseRef.current?.catch(() => null);
+        if (savedId) {
+          const idToken = await getIdToken();
+          if (idToken) {
+            await postJson(
+              `/api/monsters/${savedId}/ability`,
+              { abilityName: ability.name, abilityDescription: ability.description, animationImageDataUrl: imageDataUrl },
+              idToken
+            );
+            setAbilitySaved(true);
+          }
         }
+      } catch (err) {
+        console.error("ability save error:", err);
+        setSaveError(err instanceof Error ? err.message : "Failed to save this ability to your collection");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to learn ability");
@@ -301,6 +330,8 @@ export default function Home() {
           monster={monster}
           onLearnAbility={() => setStage("ability")}
           onSkip={commitActiveSlotAndReturnToNest}
+          saved={monsterSaved}
+          saveError={saveError}
         />
       )}
       {!loading && !error && stage === "ability" && monster && (
@@ -312,6 +343,7 @@ export default function Home() {
           ability={learnedAbility}
           onDone={commitActiveSlotAndReturnToNest}
           saved={abilitySaved}
+          saveError={saveError}
         />
       )}
     </div>

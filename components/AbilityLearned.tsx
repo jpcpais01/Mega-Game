@@ -10,11 +10,13 @@ export default function AbilityLearned({
   ability,
   onDone,
   saved,
+  saveError,
 }: {
   monster: MonsterData;
   ability: LearnedAbility;
   onDone: () => void;
   saved: boolean;
+  saveError?: string | null;
 }) {
   return (
     <div className="flex flex-col items-center gap-6 w-full pop-in">
@@ -33,6 +35,9 @@ export default function AbilityLearned({
       </div>
 
       {saved && <p className="text-xs text-[var(--accent-2)] -mt-2">✓ Saved to your collection</p>}
+      {!saved && saveError && (
+        <p className="text-xs text-[var(--danger)] -mt-2 max-w-xs text-center">⚠ Couldn&apos;t save: {saveError}</p>
+      )}
 
       <GameButton onClick={onDone}>Back to Nest</GameButton>
     </div>
