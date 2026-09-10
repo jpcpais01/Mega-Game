@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Essence, ESSENCES } from "@/lib/essences";
 import { GRID_TEMPLATE_INSTRUCTION, gridAlignmentTemplate } from "@/lib/grid-template";
+import { resolveImageModel } from "@/lib/image-models";
 import { callChatJSON, generateImage } from "@/lib/openrouter";
 import { monsterDesignerSystemPrompt, monsterDesignerUserPrompt } from "@/lib/prompts";
 import { Ability, EggStat, MonsterData } from "@/lib/types";
@@ -65,6 +66,7 @@ export async function POST(req: NextRequest) {
     const lore: unknown = body?.lore;
     const stats: unknown = body?.stats;
     const essenceIds: unknown = body?.essenceIds;
+    const imageModel = resolveImageModel(body?.imageModel);
 
     if (typeof eggName !== "string" || typeof lore !== "string" || !Array.isArray(stats) || !Array.isArray(essenceIds)) {
       return NextResponse.json({ error: "eggName, lore, stats, essenceIds are required" }, { status: 400 });
@@ -90,6 +92,7 @@ export async function POST(req: NextRequest) {
     const template = await gridAlignmentTemplate();
     const imageDataUrl = await generateImage({
       prompt: `${monsterJson.imagePrompt} ${GRID_TEMPLATE_INSTRUCTION}`,
+      model: imageModel,
       referenceImages: [template],
       spriteSheet: true,
     });

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GRID_TEMPLATE_INSTRUCTION, gridAlignmentTemplate } from "@/lib/grid-template";
+import { resolveImageModel } from "@/lib/image-models";
 import { generateImage } from "@/lib/openrouter";
 import { abilityAnimationMotion, abilityAnimationPrompt } from "@/lib/prompts";
 
@@ -13,6 +14,7 @@ export async function POST(req: NextRequest) {
     const monsterImageDataUrl: unknown = body?.monsterImageDataUrl;
     const abilityName: unknown = body?.abilityName;
     const abilityDescription: unknown = body?.abilityDescription;
+    const imageModel = resolveImageModel(body?.imageModel);
 
     if (
       typeof monsterName !== "string" ||
@@ -30,6 +32,7 @@ export async function POST(req: NextRequest) {
     const template = await gridAlignmentTemplate();
     const imageDataUrl = await generateImage({
       prompt: `${abilityAnimationPrompt({ monsterName, abilityName, abilityDescription })} ${GRID_TEMPLATE_INSTRUCTION}`,
+      model: imageModel,
       referenceImages: [monsterImageDataUrl, template],
       spriteSheet: abilityAnimationMotion({ abilityName, abilityDescription }),
       // Attacks intentionally shift the character's mass (a lunge, an

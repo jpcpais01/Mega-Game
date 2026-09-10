@@ -12,6 +12,7 @@ import SlotDetail from "@/components/SlotDetail";
 import GameButton from "@/components/ui/GameButton";
 import GamePanel from "@/components/ui/GamePanel";
 import { Ability, EggData, EggDetails, LearnedAbility, MonsterData, SlotEntry } from "@/lib/types";
+import { useImageModel } from "@/lib/use-image-model";
 import { useUnlockedEssences } from "@/lib/unlocked-essences";
 
 type Stage = "nest" | "view" | "pick" | "egg" | "monster" | "ability" | "learned";
@@ -39,6 +40,7 @@ async function postJson<T>(url: string, body: unknown, idToken?: string | null):
 export default function Home() {
   const { user, getIdToken } = useAuth();
   const { unlockedIds } = useUnlockedEssences();
+  const { model: imageModel, selectModel: selectImageModel } = useImageModel();
 
   const [stage, setStage] = useState<Stage>("nest");
   const [slots, setSlots] = useState<(SlotEntry | null)[]>(() => Array(NEST_SIZE).fill(null));
@@ -113,6 +115,7 @@ export default function Home() {
       lore: details.lore,
       stats: details.stats,
       essenceIds: details.essenceIds,
+      imageModel,
     }).then((m) => {
       setMonster(m);
       return m;
@@ -122,7 +125,7 @@ export default function Home() {
   }
 
   function beginEggImage(details: EggDetails) {
-    postJson<{ imageDataUrl: string }>("/api/egg-image", { imagePrompt: details.imagePrompt })
+    postJson<{ imageDataUrl: string }>("/api/egg-image", { imagePrompt: details.imagePrompt, imageModel })
       .then(({ imageDataUrl }) => {
         setEgg((prev) => (prev ? { ...prev, imageDataUrl } : prev));
       })
@@ -237,6 +240,7 @@ export default function Home() {
         monsterImageDataUrl: monster.imageDataUrl,
         abilityName: ability.name,
         abilityDescription: ability.description,
+        imageModel,
       });
       const learned: LearnedAbility = { ...ability, imageDataUrl };
       setLearnedAbility(learned);
@@ -285,7 +289,13 @@ export default function Home() {
       )}
 
       {!loading && !error && stage === "nest" && (
-        <Nest slots={slots} onSelectEmpty={handleSelectEmptySlot} onViewFilled={handleViewSlot} />
+        <Nest
+          slots={slots}
+          onSelectEmpty={handleSelectEmptySlot}
+          onViewFilled={handleViewSlot}
+          imageModel={imageModel}
+          onChangeImageModel={selectImageModel}
+        />
       )}
       {!loading && !error && stage === "view" && activeEntry && (
         <SlotDetail entry={activeEntry} onClose={handleCloseSlotView} onRelease={handleReleaseSlot} />

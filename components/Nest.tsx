@@ -1,6 +1,8 @@
 "use client";
 
+import { ImageModelId } from "@/lib/image-models";
 import { SlotEntry } from "@/lib/types";
+import ImageModelPicker from "./ImageModelPicker";
 import SpriteAnimator from "./SpriteAnimator";
 import { PanelCorners } from "./ui/GamePanel";
 
@@ -8,10 +10,14 @@ export default function Nest({
   slots,
   onSelectEmpty,
   onViewFilled,
+  imageModel,
+  onChangeImageModel,
 }: {
   slots: (SlotEntry | null)[];
   onSelectEmpty: (index: number) => void;
   onViewFilled: (index: number) => void;
+  imageModel: ImageModelId;
+  onChangeImageModel: (id: ImageModelId) => void;
 }) {
   return (
     <div className="flex flex-col items-center gap-6 w-full pop-in">
@@ -19,6 +25,8 @@ export default function Nest({
         <h1 className="font-display text-xl tracking-wide text-[var(--gold)]">YOUR NEST</h1>
         <p className="text-xs text-[var(--text-dim)] mt-1">Tap an empty pedestal to forge a new egg</p>
       </div>
+
+      <ImageModelPicker selected={imageModel} onSelect={onChangeImageModel} />
 
       <div className="grid grid-cols-5 gap-2 w-full">
         {slots.map((entry, i) =>

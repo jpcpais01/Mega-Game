@@ -1,11 +1,19 @@
 import { CHROMA_KEY_HEX, chromaKeyToTransparentPng } from "./chroma-key";
+import { DEFAULT_IMAGE_MODEL, ImageModelId } from "./image-models";
 import { buildSpriteSheetSuffix } from "./sprite";
 import { realignSpriteFrames } from "./sprite-realign";
 
 const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
 
 const TEXT_MODEL = "openai/gpt-5.6-luna";
-const IMAGE_MODEL = "openai/gpt-image-2.5-flare";
+
+// Gemini's Image API has no `quality` field — it takes a resolution tier
+// instead. Map our app-wide quality intent onto the closest tier.
+function resolutionForQuality(quality: string): "512" | "1K" | "2K" | "4K" {
+  if (quality === "low") return "512";
+  if (quality === "high") return "2K";
+  return "1K";
+}
 
 const CHROMA_KEY_BG_SUFFIX = `Background: fill the ENTIRE background area with one single, perfectly flat, completely uniform, unbroken solid chroma-key color: ${CHROMA_KEY_HEX} (pure magenta/pink) — a solid opaque studio background paint, like a photography green-screen. This is NOT a representation of transparency, so do NOT draw a checkerboard pattern or any transparency icon, and do NOT use any gradient, texture, vignette, or scenery. Every background pixel must be that exact flat magenta color. The subject itself must never use this magenta/pink color anywhere.`;
 
@@ -85,26 +93,42 @@ export async function callChatJSON(params: {
 type ImagesApiResult = { ok: true; b64: string } | { ok: false; status: number; body: string };
 
 async function requestImage(params: {
+  model: ImageModelId;
   prompt: string;
   aspectRatio: string;
   quality: string;
-  background: "opaque";
   referenceImages?: string[];
 }): Promise<ImagesApiResult> {
+  const body: Record<string, unknown> = {
+    model: params.model,
+    prompt: params.prompt,
+    aspect_ratio: params.aspectRatio,
+    n: 1,
+    ...(params.referenceImages?.length
+      ? { input_references: params.referenceImages.map((url) => ({ type: "image_url", image_url: { url } })) }
+      : {}),
+  };
+
+  // Gemini's Image API doesn't accept `quality` or `background` at all —
+  // an unlisted field is rejected outright, so build its body separately
+  // from the OpenAI-shaped models instead of always sending both fields.
+  if (params.model === "google/gemini-3.1-flash-image") {
+    body.resolution = resolutionForQuality(params.quality);
+  } else {
+    body.quality = params.quality;
+    // We tried background:"transparent" first here for a while, but this
+    // account's OpenRouter routing for the OpenAI image models hard-rejects
+    // it every time (400: "Accepted: auto, opaque") — so on a cold
+    // serverless instance that was a full wasted image-generation round
+    // trip before falling back to the chroma-key path that actually works,
+    // roughly doubling latency. Go straight to chroma-key.
+    body.background = "opaque";
+  }
+
   const res = await fetch(`${OPENROUTER_BASE}/images`, {
     method: "POST",
     headers: authHeaders(),
-    body: JSON.stringify({
-      model: IMAGE_MODEL,
-      prompt: params.prompt,
-      aspect_ratio: params.aspectRatio,
-      quality: params.quality,
-      background: params.background,
-      n: 1,
-      ...(params.referenceImages?.length
-        ? { input_references: params.referenceImages.map((url) => ({ type: "image_url", image_url: { url } })) }
-        : {}),
-    }),
+    body: JSON.stringify(body),
   });
 
   if (!res.ok) {
@@ -122,6 +146,7 @@ async function requestImage(params: {
 
 export async function generateImage(params: {
   prompt: string;
+  model?: ImageModelId;
   aspectRatio?: string;
   quality?: string;
   /** true = default idle-loop sprite sheet; a string = custom motion description (e.g. an ability action) */
@@ -137,23 +162,18 @@ export async function generateImage(params: {
   /** Image-to-image reference(s), e.g. an existing monster sprite sheet to keep the design consistent */
   referenceImages?: string[];
 }): Promise<string> {
+  const model = params.model ?? DEFAULT_IMAGE_MODEL;
   const aspectRatio = params.aspectRatio ?? "1:1";
   const quality = params.quality ?? "high";
   const basePrompt = params.spriteSheet
     ? `${params.prompt} ${buildSpriteSheetSuffix(typeof params.spriteSheet === "string" ? params.spriteSheet : undefined)}`
     : params.prompt;
 
-  // We tried background:"transparent" first here for a while, but this
-  // account's OpenRouter routing for IMAGE_MODEL hard-rejects it every time
-  // (400: "Accepted: auto, opaque") — so on a cold serverless instance that
-  // was a full wasted image-generation round trip before falling back to
-  // the chroma-key path that actually works, roughly doubling latency. Go
-  // straight to chroma-key.
   const chromaResult = await requestImage({
+    model,
     prompt: `${basePrompt} ${CHROMA_KEY_BG_SUFFIX}`,
     aspectRatio,
     quality,
-    background: "opaque",
     referenceImages: params.referenceImages,
   });
   if (!chromaResult.ok) {
